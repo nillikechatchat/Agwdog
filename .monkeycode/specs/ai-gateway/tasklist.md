@@ -12,20 +12,20 @@
     - 依赖：`better-sqlite3`（运行时）、`vitest`（dev）
     - `engines.node >= 20`，`type: "module"`（ESM）
     - `scripts`: `dev`（tsx watch）、`build`（tsc）、`test`（vitest run）、`lint`（待选）
-  - [ ] 1.2 TypeScript 配置 `tsconfig.json`
+  - [x] 1.2 TypeScript 配置 `tsconfig.json`
     - 严格模式、ES2022 target、NodeNext module resolution、path alias `@/*` → `src/*`
     - 输出到 `dist/`，包含 sourcemap
-  - [ ] 1.3 目录骨架 `src/` 与 `test/`
+  - [x] 1.3 目录骨架 `src/` 与 `test/`
     - 创建 `src/{server,adapters,clients,ir,router,probe,budget,cache,observability,usage,admin,cli,storage,crypto,utils}/`
     - 创建 `test/{unit,integration,e2e}/`
     - 创建 `web/`（管理后台）
-  - [ ] 1.4 配置文件加载器 `src/config/loader.ts`
+  - [x] 1.4 配置文件加载器 `src/config/loader.ts`
     - 读取 `gateway.config.json` + 环境变量覆盖；提供 `getConfig()` 单例
     - 校验 schema（protocol 取值、url 格式、价格非负）
     - 首次启动时生成随机 Admin Token 并打印到 stdout
-  - [ ] 1.5 加密工具 `src/crypto/aes.ts`
+  - [x] 1.5 加密工具 `src/crypto/aes.ts`
     - AES-256-GCM 加解密；`MASTER_KEY` 来源：环境变量 `GATEWAY_MASTER_KEY` 或 `dataDir/master.key`（首次随机生成、0o600）
-  - [ ] 1.6 Logger `src/utils/logger.ts`
+  - [x] 1.6 Logger `src/utils/logger.ts`
     - 结构化 JSON 日志（stdout）；敏感字段（Authorization、Cookie、X-Api-Key、sk-/Bearer/AKIA/ghp_/PEM）自动替换为 `***`
 
 ---
