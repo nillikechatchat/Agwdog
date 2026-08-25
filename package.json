@@ -1,0 +1,68 @@
+{
+  "name": "ai-gateway",
+  "version": "0.1.0",
+  "description": "Local-first AI API gateway: 6 provider APIs in, 4 client protocols out, with caching, budgets, fallback chains, Prometheus and OpenTelemetry.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "ai-gateway": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "web",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/cli/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/cli/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:e2e": "vitest run test/e2e",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist coverage .tsbuildinfo",
+    "prepack": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "ai",
+    "gateway",
+    "openai",
+    "anthropic",
+    "gemini",
+    "responses",
+    "router",
+    "load-balancer",
+    "fallback",
+    "observability",
+    "otel",
+    "prometheus"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nillikechatchat/Agwdog.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nillikechatchat/Agwdog/issues"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.5.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

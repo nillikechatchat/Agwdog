@@ -7,7 +7,7 @@
 ---
 
 - [ ] 1. 项目脚手架与基础工具
-  - [ ] 1.1 初始化 `package.json` 与 npm 包元数据
+  - [x] 1.1 初始化 `package.json` 与 npm 包元数据
     - 名称 `ai-gateway`，`bin: { "ai-gateway": "./dist/cli/index.js" }`，`main: "./dist/index.js"`
     - 依赖：`better-sqlite3`（运行时）、`vitest`（dev）
     - `engines.node >= 20`，`type: "module"`（ESM）
