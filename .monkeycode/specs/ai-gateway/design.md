@@ -5,9 +5,27 @@ Updated: 2026-08-25
 
 ## Description
 
-`ai-gateway` 是本地优先的 npm 包形态 AI API 网关，单一 Node.js 进程承载 HTTP 客户端入口、协议转换、虚拟模型路由、Probe、Key 鉴权、用量计量、Web 管理后台与 CLI。它把 OpenAI、Anthropic、Google Gemini、豆包、文心等上游 Provider 聚合为三类客户端协议（OpenAI Chat Completions、Anthropic Messages、Gemini GenerateContent）的统一入口，按策略在多个 Upstream Model 间路由，并在故障时自动跳过不可用模型。
+`ai-gateway` 是本地优先的 npm 包形态 AI API 网关，单一 Node.js 进程承载 HTTP 客户端入口、协议转换、虚拟模型路由、Probe、Key 鉴权、用量计量、Web 管理后台与 CLI。它把 6 类上游 API（OpenAI、OpenAI-Compatible、Anthropic、Google Gemini、豆包 Ark、文心千帆）通过内部协议无关表示统一接入，再以 3 种 Client Protocol 出口（OpenAI Chat Completions、Anthropic Messages、Gemini GenerateContent）对外暴露，按策略在多个 Upstream Model 间路由，并在故障时自动跳过不可用模型。**形态：多 API 进，三协议出。**
 
 包通过 `npx ai-gateway` 启动，使用 better-sqlite3 持久化配置与用量。Web 后台以单文件 HTML + 原生 JS 实现，无前端构建步骤。CLI 与管理 REST API 暴露完全相同的配置能力。
+
+### 形态总览（多 API 进，三协议出）
+
+```
+        ┌─────────────────────── Provider 入口（6 类 API） ───────────────────────┐
+        │  OpenAI │ OpenAI-Compatible │ Anthropic │ Gemini │ Doubao │ Wenxin   │
+        └─────────────────────────────┬──────────────────────────────────────────┘
+                                      │ 阶段一 Adapter → IR
+                                      ▼
+                          ┌──────────────────────┐
+                          │   IR（内部表示）      │
+                          └──────────┬───────────┘
+                                     │ 阶段二 Serializer
+        ┌────────────────────────────┴──────────────────────────────────────────┐
+        │                  Client Protocol 出口（3 种）                         │
+        │  OpenAI Chat Completions │ Anthropic Messages │ Gemini GenerateContent │
+        └────────────────────────────────────────────────────────────────────────┘
+```
 
 ## Architecture
 
@@ -70,17 +88,20 @@ sequenceDiagram
     C->>G: POST /v1/chat/completions (OpenAI protocol)
     G->>G: Auth (Virtual Key)
     G->>G: Resolve model → UpstreamModel via Router
-    G->>G: Convert OpenAI request → Provider request
+    G->>G: Adapter: Client request → IR (stage 1: Provider-agnostic)
+    G->>G: Serializer: IR → Provider request (stage 2: outbound encode)
     G->>P: HTTPS (Provider native protocol, with timeout/retry)
     alt stream = true
         P-->>G: SSE frames
         loop per frame
-            G->>G: Convert Provider SSE → OpenAI SSE
+            G->>G: Adapter: Provider SSE → IR.delta
+            G->>G: Serializer: IR.delta → Client SSE
             G-->>C: SSE frame
         end
     else stream = false
         P-->>G: JSON
-        G->>G: Convert Provider JSON → OpenAI JSON
+        G->>G: Adapter: Provider JSON → IR.response
+        G->>G: Serializer: IR.response → Client JSON
         G-->>C: JSON
     end
     G->>G: Record usage (tokens, cost, latency)
@@ -89,11 +110,26 @@ sequenceDiagram
 
 ### 协议转换矩阵
 
-| Client \ Provider | OpenAI | OpenAI-Compatible | Anthropic | Gemini | Doubao | Wenxin |
-|---|---|---|---|---|---|---|
-| OpenAI | 直传 | 直传 | 转换 | 转换 | 转换 | 转换 |
-| Anthropic | 转换 | 转换 | 直传 | 转换 | 转换 | 转换 |
-| Gemini | 转换 | 转换 | 转换 | 直传 | 转换 | 转换 |
+设计上采用 **Provider 入口 × Client 出口** 的二阶段转换：先把 6 类 Provider API 翻译为内部协议无关表示（IR），再从 IR 序列化为 3 种 Client Protocol 出口。
+
+**阶段一：Provider → IR（6 类入口归一）**
+
+| Provider API | 入口归一策略 |
+|---|---|
+| OpenAI | 直接映射到 IR |
+| OpenAI-Compatible | 直接映射到 IR（与 OpenAI 同构） |
+| Anthropic | 转换为 IR（system 数组拼接、tool_use 块转 IR.tool_calls、thinking 字段转 IR.thinking） |
+| Gemini | 转换为 IR（contents 角色归一、functionCall ↔ IR.tool_calls、thoughts 转 IR.thinking） |
+| Doubao | 走 OpenAI-Compatible 路径，按 OpenAI body 转换 IR |
+| Wenxin | 走 OpenAI-Compatible 路径，按 OpenAI body 转换 IR |
+
+**阶段二：IR → Client Protocol（3 种出口）**
+
+| IR \ Client | OpenAI | Anthropic | Gemini |
+|---|---|---|---|
+| IR | 直传 | 转换（tool_calls → tool_use blocks、流式 content_block_*） | 转换（tool_calls → functionCall、contents 角色反推） |
+
+由于阶段一已把 6 类入口归一，阶段二只需 3 个出口序列化器，避免了 6×3=18 个直接转换对的组合爆炸。
 
 ## Components and Interfaces
 
@@ -129,16 +165,48 @@ sequenceDiagram
   - `LowestLatency` — 滑动窗口（默认 5 次）平均延迟最低且 available 的成员。
 - 若所有成员 unavailable，返回 502 `all_upstreams_unavailable`。
 
-### 4. Protocol Converters（`src/converters/`）
+### 4. Protocol Converters（两阶段：adapters + clients）
 
-每个 Converter 实现 `encodeRequest(clientReq, upstreamDef) → ProviderReq` 和 `decodeResponse(providerRes, isStream) → AsyncIterable<ClientEvent>`。
+#### 4.1 Provider Adapters（`src/adapters/`，入口归一）
 
-- `openai.ts` — OpenAI ↔ OpenAI 双向（基线）。
-- `anthropic.ts` — Anthropic ↔ Anthropic + 反向生成。处理 system 数组拼接、thinking 字段、tool_use 流式增量（content_block_start / content_block_delta / content_block_stop、input_json_delta）。
-- `gemini.ts` — Gemini GenerateContent 双向。处理 contents 角色映射、functionCall ↔ tool_calls、thought 字段透传。
-- `doubao.ts` — 字节豆包 Ark：OpenAI 兼容但鉴权用 `Authorization: Bearer ${ARK_API_KEY}`，model id 为 `ep-xxx` 或 `doubao-xxx`，独立 baseUrl（默认 `https://ark.cn-beijing.volces.com/api/v3`）。
-- `wenxin.ts` — 百度文心千帆：通过 OAuth2 client_credentials 获取 access_token，POST `{baseUrl}/v2/chat/completions`，body 字段差异（message 不支持 role=system 数组，需拼接）。
-- `converter-bus.ts` — 选择 `(clientProtocol, providerProtocol)` 对应的实现，缺失时返回 unsupported_pair 错误。
+每个 Adapter 实现 `toIR(request) → IR` 与 `fromIR?(response | stream) → ProviderResponse`，**只关心把 Provider 协议翻译为 IR 或从 IR 还原 Provider 响应**。
+
+- `openai.ts` — OpenAI ↔ IR。基线。
+- `openai-compatible.ts` — 与 OpenAI 同构，差异化只在鉴权头（部分中转要求 `Authorization: Bearer` 而非 OpenAI 标准）和路径差异（如 `/v1/chat/completions` vs `/v2/chat/completions`）。
+- `anthropic.ts` — Anthropic Messages → IR。处理 system 数组拼接、tool_use 块 → IR.tool_calls、thinking 字段 → IR.thinking、cache_control 标记。
+- `gemini.ts` — Gemini GenerateContent → IR。contents 角色归一、functionCall → IR.tool_calls、thoughts → IR.thinking。
+- `doubao.ts` — 豆包 Ark：复用 `openai-compatible.ts` 主体，覆盖 baseUrl（默认 `https://ark.cn-beijing.volces.com/api/v3`）与鉴权头。
+- `wenxin.ts` — 文心千帆：复用 `openai-compatible.ts` 主体，覆盖 OAuth2 client_credentials 获取 access_token、`POST {baseUrl}/v2/chat/completions`、message role=system 数组拼接。
+
+#### 4.2 Client Serializers（`src/clients/`，出口序列化）
+
+每个 Serializer 实现 `serialize(ir, options) → ClientResponse | AsyncIterable<ClientEvent>`，**只关心从 IR 序列化为 3 种 Client Protocol**。
+
+- `openai-client.ts` — IR → OpenAI Chat Completions（直传）。
+- `anthropic-client.ts` — IR → Anthropic Messages。处理 IR.tool_calls → tool_use 块、流式 content_block_start / content_block_delta / content_block_stop、IR.thinking → thinking blocks、cache_control 还原。
+- `gemini-client.ts` — IR → Gemini GenerateContent。处理 IR.tool_calls → functionCall、contents 角色反推、IR.thinking → thoughts。
+
+#### 4.3 Bus（`src/protocol-bus.ts`）
+
+- 接收 `(clientProtocol, providerProtocol)`，选择对应 Serializer × Adapter 对。
+- 缺失组合（如 Client=Anthropic × Provider=Anthropic）走直通路径（直传）。
+- 缺失能力时返回 `unsupported_capability` 错误。
+
+由于阶段一已把 6 类入口归一为 IR，阶段二只需 3 个 Serializer × 6 个 Adapter = 18 个组合，但其中 Adapter 实现极薄（多数走 OpenAI-compatible 模板），新增 Provider 只需新增一个 Adapter 文件。
+
+#### 4.4 IR（内部协议无关表示，`src/ir/types.ts`）
+
+```ts
+type IRMessage = { role: 'system' | 'user' | 'assistant' | 'tool'; content: IRContent[]; name?: string };
+type IRContent = IRText | IRImage | IRAudio | IRToolUse | IRToolResult | IRThinking;
+type IRToolUse = { id: string; name: string; arguments: unknown };
+type IRToolResult = { toolCallId: string; content: string | IRContent[]; isError?: boolean };
+type IRThinking = { text: string; signature?: string };
+type IRRequest = { model: string; messages: IRMessage[]; tools?: IRTool[]; toolChoice?: 'auto' | 'none' | { name: string }; temperature?: number; topP?: number; maxTokens?: number; stop?: string[]; responseFormat?: IRResponseFormat; stream: boolean; metadata?: Record<string, unknown> };
+type IRResponse = { id: string; model: string; choices: IRChoice[]; usage: IRUsage; finishReason: IRFinishReason };
+type IRUsage = { promptTokens: number; completionTokens: number; cachedTokens: number; totalTokens: number };
+type IRFinishReason = 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'error';
+```
 
 ### 5. Probe Worker（`src/probe/worker.ts`）
 
@@ -401,7 +469,7 @@ CREATE TABLE schema_version (
 
 ## Correctness Properties
 
-1. **协议一致性**：Client Protocol 响应体的字段集是上游 Provider 协议字段集的超集（多余字段以 `X-Gateway-Forwarded-*` 头暴露，正文仅含 Client Protocol 标准字段）。
+1. **协议一致性**：无论上游 Provider 是 6 类 API 中的哪一种，Client Protocol 出口（OpenAI/Anthropic/Gemini）响应体的字段集只受 Client Protocol 规范约束；IR 阶段不暴露任何 Provider 专属字段，Provider 专属字段以 `X-Gateway-Forwarded-*` 头透传。
 2. **Token 守恒**：response 中 `usage.prompt_tokens + usage.completion_tokens == usage.total_tokens`，流式结束时累计 total_tokens 等于非流式一次性返回的 total_tokens。
 3. **路由不变量**：一次请求最多触发一次 UpstreamModel 选择；切换协议或路由时不修改已发出的 HTTP 请求体。
 4. **可用性不变量**：当 UpstreamModel 状态为 unavailable，Router SHALL 不将其纳入选择；当所有成员 unavailable，Router SHALL 返回 502。
@@ -420,7 +488,7 @@ CREATE TABLE schema_version (
 | 鉴权失败 | 401 | `invalid_key` / `missing_authorization` | 原样返回 |
 | Key 限额超限 | 429 | `rate_limit_exceeded` / `token_quota_exceeded` | 返回 Retry-After |
 | 模型不存在 / 不允许 | 404 / 403 | `model_not_found` / `model_not_allowed` | 原样返回 |
-| 协议转换不支持 | 400 | `unsupported_protocol_pair` | 返回详细解释 |
+| 协议转换不支持 | 400 | `unsupported_capability` | 返回详细解释（如 Provider 不支持 tools、流式与 response_format 互斥等） |
 | 上游 4xx | 透传 | 透传 | 包成 Client Protocol 错误体 |
 | 上游 5xx | 502 | `upstream_5xx` | 触发 Failover / 记录探测失败 |
 | 上游超时 | 504 | `upstream_timeout` | 触发 Failover |
@@ -444,7 +512,10 @@ CREATE TABLE schema_version (
 
 ### 单元测试（`test/unit/`，vitest）
 
-- 协议转换器：每个 Converter 与 Client×Provider 组合至少 1 组 fixture，覆盖：
+- 协议转换器（两阶段）：
+  - 阶段一 Adapter：6 类 Provider 各 1 套 fixture，覆盖非流式 / 流式 / 工具调用 / thinking / cache_control。
+  - 阶段二 Serializer：3 种 Client Protocol 各 1 套 fixture，覆盖 IR → Client 的非流式与流式输出。
+  - IR 守恒：相同 IR 输入经过 3 个 Serializer 后，关键字段（tool_calls.id、usage.total_tokens、finish_reason）数值一致。
   - 非流式、文本、tools、tool_choice、system、stream、temperature、max_tokens、top_p、response_format
   - 流式：OpenAI `delta.content` / `delta.tool_calls`、Anthropic `content_block_start` + `input_json_delta`、Gemini `candidates[0].content.parts[].text` 与 `functionCall`
   - thinking / reasoning 字段

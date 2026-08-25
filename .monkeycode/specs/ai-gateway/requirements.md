@@ -11,7 +11,7 @@
 - **Gateway**：本文档中所述的 `ai-gateway` 本地服务进程。
 - **Upstream Provider**：接入 Gateway 的上游模型服务方，例如 OpenAI、Anthropic、Google Gemini、字节豆包、百度文心、阿里通义、DeepSeek、月之暗面、智谱、本地 Ollama 等。
 - **Provider Protocol**：上游 Provider 使用的原生 API 协议，包含 OpenAI Chat Completions、Anthropic Messages、Gemini GenerateContent、Doubao Ark、Wenxin AccessToken、OpenAI-Compatible 六类。
-- **Client Protocol**：调用方发送给 Gateway 的协议。Gateway 必须支持 OpenAI Chat Completions、Anthropic Messages、Gemini GenerateContent 三种 Client Protocol 入口。
+- **Client Protocol**：调用方发送给 Gateway 的协议（即 Gateway 对外暴露的协议）。Gateway 必须支持 OpenAI Chat Completions、Anthropic Messages、Gemini GenerateContent 三种 Client Protocol 出口。无论上游 Provider 是哪一种 API，调用方都通过这三种协议之一与 Gateway 通信。
 - **Virtual Model**：用户在 Gateway 管理后台创建、由若干真实 Upstream Model 组合而成的逻辑模型名，可指定路由策略。
 - **Routing Strategy**：将请求分发到 Virtual Model 中某个 Upstream Model 的策略，包含 Round Robin、Weighted Random、Failover、Lowest Latency 四种。
 - **Probe**：Gateway 对 Upstream Model 发起的可用性探测请求，记录延迟、HTTP 状态码与失败原因。
@@ -23,9 +23,9 @@
 
 ## Requirements
 
-### Requirement 1 — 统一多协议入口
+### Requirement 1 — 多 API 进、三协议出
 
-**User Story:** 作为 AI 应用开发者，我希望用 OpenAI/Anthropic/Gemini 三种 SDK 任意一种直接调用 Gateway，这样不必为每个上游 Provider 维护独立客户端。
+**User Story:** 作为 AI 应用开发者，我希望用 OpenAI/Anthropic/Gemini 三种 SDK 任意一种直接调用 Gateway，不论底层接的是 6 种上游 API 中的哪一种，调用方都看到同一种 Client Protocol 响应，这样不必为每个上游 Provider 维护独立客户端。
 
 #### Acceptance Criteria
 
@@ -37,16 +37,17 @@
 
 ### Requirement 2 — 上游 Provider 接入
 
-**User Story:** 作为平台运维者，我希望把任意数量的 Upstream Provider 接入 Gateway，包括官方直连、OpenAI 兼容中转以及豆包/文心等私有协议厂商，这样所有模型都可在一个面板管理。
+**User Story:** 作为平台运维者，我希望把任意数量的 Upstream Provider API 接入 Gateway，包括官方直连、OpenAI 兼容中转以及豆包/文心等国产特色 API，这样所有模型都可在一个面板管理。Gateway 内部将这些 API 归一化为统一的内部表示，再以 3 种 Client Protocol 出口对外暴露。
 
 #### Acceptance Criteria
 
-1. WHEN 管理员在 Web 后台或 `POST /admin/providers` 添加一个 Provider，THE Gateway SHALL 在数据层持久化该 Provider 的 id、name、protocol、baseUrl、apiKey 与模型列表。
+1. WHEN 管理员在 Web 后台或 `POST /admin/providers` 添加一个 Provider，THE Gateway SHALL 在数据层持久化该 Provider 的 id、name、protocol、baseUrl、apiKey 与模型列表，protocol 取值限于 OpenAI、OpenAI-Compatible、Anthropic、Gemini、Doubao、Wenxin 六种。
 2. WHEN Provider 的 protocol 为 `OpenAI-Compatible` 或 `OpenAI`，THE Gateway SHALL 通过 `GET {baseUrl}/models` 自动拉取上游模型列表并写入 Provider 的 models 字段。
 3. WHEN Provider 的 protocol 为 `Anthropic`，THE Gateway SHALL 通过调用 `POST {baseUrl}/v1/messages` 携带轻量提示词完成模型列表同步，结果以 (modelId, displayName) 形式持久化。
 4. WHEN Provider 的 protocol 为 `Gemini`，THE Gateway SHALL 通过 `GET {baseUrl}/v1beta/models` 拉取上游模型列表并写入 Provider 的 models 字段。
 5. WHEN Provider 的 protocol 为 `Doubao` 或 `Wenxin`，THE Gateway SHALL 使用 Provider 配置中显式声明的模型列表，不主动探测上游模型目录。
 6. WHEN 管理员删除一个 Provider，THE Gateway SHALL 同时删除该 Provider 下所有关联的 Upstream Model、Probe 记录与路由引用。
+7. WHEN Gateway 完成 Provider 接入，THE Gateway SHALL 在内部将该 Provider 的 API 描述注册为 `internal-protocol-neutral` 表示，所有 6 种 API 在转换层都被翻译为这一内部表示，再按 Client Protocol 序列化出口。
 
 ### Requirement 3 — 三协议请求与响应互转（含 Claude Code 兼容）
 
@@ -151,7 +152,7 @@
 2. WHEN 任何错误响应体构造时，THE Gateway SHALL 仅暴露 Provider 返回的错误 message 与 code 字段，不包含 Authorization、X-Api-Key、Bearer 等鉴权字段。
 3. WHEN Gateway 发起上游请求，THE Gateway SHALL 设置 connectTimeoutMs（默认 5000）、requestTimeoutMs（默认 60000）、maxRetries（默认 1，由 Retry-After 触发）三项硬性约束。
 4. WHEN 客户端请求中包含敏感字段（Authorization、Cookie、X-Api-Key），THE Gateway SHALL 在日志输出前将其替换为 `***`。
-5. WHEN 管理员启用 `adminEnabled=false`，THE Gateway SHALL 完全禁用 Web 管理后台与管理 REST API，但不影响 `POST /v1/chat/completions` 等客户端协议入口。
+5. WHEN 管理员启用 `adminEnabled=false`，THE Gateway SHALL 完全禁用 Web 管理后台与管理 REST API，但不影响 `POST /v1/chat/completions` 等 Client Protocol 出口。
 
 ### Requirement 11 — Claude Code / Cursor / Cline 兼容矩阵
 
