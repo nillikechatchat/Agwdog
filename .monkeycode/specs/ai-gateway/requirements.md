@@ -11,7 +11,8 @@
 - **Gateway**：本文档中所述的 `ai-gateway` 本地服务进程。
 - **Upstream Provider**：接入 Gateway 的上游模型服务方，例如 OpenAI、Anthropic、Google Gemini、字节豆包、百度文心、阿里通义、DeepSeek、月之暗面、智谱、本地 Ollama 等。
 - **Provider Protocol**：上游 Provider 使用的原生 API 协议，包含 OpenAI Chat Completions、Anthropic Messages、Gemini GenerateContent、Doubao Ark、Wenxin AccessToken、OpenAI-Compatible 六类。
-- **Client Protocol**：调用方发送给 Gateway 的协议（即 Gateway 对外暴露的协议）。Gateway 必须支持 OpenAI Chat Completions、Anthropic Messages、Gemini GenerateContent 三种 Client Protocol 出口。无论上游 Provider 是哪一种 API，调用方都通过这三种协议之一与 Gateway 通信。
+- **Client Protocol**：调用方发送给 Gateway 的协议（即 Gateway 对外暴露的协议）。Gateway 必须支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent 四种 Client Protocol 出口。无论上游 Provider 是哪一种 API，调用方都通过这四种协议之一与 Gateway 通信。
+- **Responses Item**：OpenAI Responses 协议中的结构化输出单元，包含 `message`、`function_call`、`function_call_output`、`reasoning`、`web_search_call` 等类型。
 - **Virtual Model**：用户在 Gateway 管理后台创建、由若干真实 Upstream Model 组合而成的逻辑模型名，可指定路由策略。
 - **Routing Strategy**：将请求分发到 Virtual Model 中某个 Upstream Model 的策略，包含 Round Robin、Weighted Random、Failover、Lowest Latency 四种。
 - **Probe**：Gateway 对 Upstream Model 发起的可用性探测请求，记录延迟、HTTP 状态码与失败原因。
@@ -23,21 +24,23 @@
 
 ## Requirements
 
-### Requirement 1 — 多 API 进、三协议出
+### Requirement 1 — 多 API 进、四协议出
 
-**User Story:** 作为 AI 应用开发者，我希望用 OpenAI/Anthropic/Gemini 三种 SDK 任意一种直接调用 Gateway，不论底层接的是 6 种上游 API 中的哪一种，调用方都看到同一种 Client Protocol 响应，这样不必为每个上游 Provider 维护独立客户端。
+**User Story:** 作为 AI 应用开发者，我希望用 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent 四种 SDK 任意一种直接调用 Gateway，不论底层接的是 6 种上游 API 中的哪一种，调用方都看到同一种 Client Protocol 响应，这样不必为每个上游 Provider 维护独立客户端。
 
 #### Acceptance Criteria
 
 1. WHEN 客户端以 OpenAI Chat Completions 协议调用 Gateway 的 `POST /v1/chat/completions`，THE Gateway SHALL 返回 OpenAI Chat Completions 协议语义一致的成功响应或错误响应。
-2. WHEN 客户端以 Anthropic Messages 协议调用 Gateway 的 `POST /v1/messages`，THE Gateway SHALL 返回 Anthropic Messages 协议语义一致的成功响应或错误响应。
-3. WHEN 客户端以 Gemini GenerateContent 协议调用 Gateway 的 `POST /v1beta/models/{model}:generateContent`，THE Gateway SHALL 返回 Gemini GenerateContent 协议语义一致的成功响应或错误响应。
-4. WHEN 客户端发送 SSE 流式请求，THE Gateway SHALL 将上游响应原样或经转换后以 SSE 帧的形式转发给客户端，事件顺序与上游保持一致。
-5. WHEN 客户端请求 `GET /v1/models`，THE Gateway SHALL 返回所有已启用 Virtual Model 与真实 Upstream Model 的列表，字段包含 id、object、created、owned_by、type。
+2. WHEN 客户端以 OpenAI Responses 协议调用 Gateway 的 `POST /v1/responses`，THE Gateway SHALL 返回 OpenAI Responses 协议语义一致的成功响应或错误响应，包含 `id`、`object`、`output` 数组、`usage`、`status` 字段。
+3. WHEN 客户端以 Anthropic Messages 协议调用 Gateway 的 `POST /v1/messages`，THE Gateway SHALL 返回 Anthropic Messages 协议语义一致的成功响应或错误响应。
+4. WHEN 客户端以 Gemini GenerateContent 协议调用 Gateway 的 `POST /v1beta/models/{model}:generateContent`，THE Gateway SHALL 返回 Gemini GenerateContent 协议语义一致的成功响应或错误响应。
+5. WHEN 客户端发送 SSE 流式请求，THE Gateway SHALL 将上游响应原样或经转换后以 SSE 帧的形式转发给客户端，事件顺序与上游保持一致。
+6. WHEN 客户端请求 `GET /v1/models`，THE Gateway SHALL 返回所有已启用 Virtual Model 与真实 Upstream Model 的列表，字段包含 id、object、created、owned_by、type。
+7. WHEN OpenAI Responses 客户端请求中携带 `previous_response_id` 字段，THE Gateway SHALL 在 IR 阶段以 `IR.continuation` 字段承载，并由 Provider Adapter 在转发至支持 Responses 的 Provider 时还原为 `previous_response_id`，转发至不支持的 Provider 时退化为完整 messages 数组并写入 `X-Gateway-Warnings`。
 
 ### Requirement 2 — 上游 Provider 接入
 
-**User Story:** 作为平台运维者，我希望把任意数量的 Upstream Provider API 接入 Gateway，包括官方直连、OpenAI 兼容中转以及豆包/文心等国产特色 API，这样所有模型都可在一个面板管理。Gateway 内部将这些 API 归一化为统一的内部表示，再以 3 种 Client Protocol 出口对外暴露。
+**User Story:** 作为平台运维者，我希望把任意数量的 Upstream Provider API 接入 Gateway，包括官方直连、OpenAI 兼容中转以及豆包/文心等国产特色 API，这样所有模型都可在一个面板管理。Gateway 内部将这些 API 归一化为统一的内部表示，再以 4 种 Client Protocol 出口（OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent）对外暴露。
 
 #### Acceptance Criteria
 
@@ -49,7 +52,7 @@
 6. WHEN 管理员删除一个 Provider，THE Gateway SHALL 同时删除该 Provider 下所有关联的 Upstream Model、Probe 记录与路由引用。
 7. WHEN Gateway 完成 Provider 接入，THE Gateway SHALL 在内部将该 Provider 的 API 描述注册为 `internal-protocol-neutral` 表示，所有 6 种 API 在转换层都被翻译为这一内部表示，再按 Client Protocol 序列化出口。
 
-### Requirement 3 — 三协议请求与响应互转（含 Claude Code 兼容）
+### Requirement 3 — 四协议请求与响应互转（含 Claude Code 兼容）
 
 **User Story:** 作为调用者，我希望无论请求协议与上游协议是否一致，都能正确完成请求与响应互转，包括流式与工具调用，这样 Claude Code、Cline、Cursor、Codex 等工具都能直接对接 Gateway。
 
@@ -64,6 +67,10 @@
 7. WHEN 客户端以 Anthropic Messages 协议调用并携带 tools 字段，THE Gateway SHALL 在转发至非 Anthropic Provider 时将 Anthropic tool_use 块转换为 OpenAI function calling 或 Gemini functionDeclarations，并把 Provider 返回的工具调用反向转换为 Anthropic tool_use 流式事件。
 8. WHEN Anthropic 客户端请求中携带 `thinking` 或 extended thinking 字段，THE Gateway SHALL 在 Provider 支持时映射为对应字段（OpenAI reasoning_effort、Gemini thinkingConfig）；不支持时忽略并写入 `X-Gateway-Warnings`。
 9. WHEN 客户端以 Anthropic 协议调用并使用 `system` 数组形式（多段 system），THE Gateway SHALL 在转换阶段拼接为单一 system 文本字段并保留原始顺序与 cache_control 标记。
+10. WHEN 客户端以 OpenAI Responses 协议调用，THE Gateway SHALL 将 `input` 字符串或数组项（`message`、`function_call`、`function_call_output`、`reasoning`）归一化为 IR.messages，再由 Provider Adapter 转换为目标 Provider 请求体。
+11. WHEN 客户端以 OpenAI Responses 协议调用并请求 `web_search` 等内置工具，THE Gateway SHALL 在 IR 阶段标记 `IR.tools` 中对应工具的 `provider_executed` 标志，并在 Provider Adapter 中按 Provider 能力拆解：支持 Responses 的 Provider 原样转发；支持 Chat Completions 的 Provider 在 Adapter 中调用实际搜索并以 `IR.tool_result` 注入消息；不支持搜索的 Provider 返回 400 错误，错误码 `builtin_tool_not_supported`。
+12. WHEN 上游以 OpenAI Responses 协议返回（Provider 为 OpenAI Responses 原生或兼容 Responses 的中转），THE Gateway SHALL 在 Responses Serializer 中按 Responses Item 类型逐项渲染 `output` 数组，并在流式响应中按 Responses event 类型（`response.created`、`response.output_text.delta`、`response.output_item.done`、`response.completed`）顺序转发。
+13. WHEN 客户端以 OpenAI Responses 协议调用并携带 `previous_response_id`，THE Gateway SHALL 在 Provider 不支持 Responses 续传时退化为完整 messages 数组（从本地响应缓存或 Provider 历史接口拉取）并写入 `X-Gateway-Warnings`。
 
 ### Requirement 4 — Virtual Model 与路由策略
 
@@ -154,9 +161,9 @@
 4. WHEN 客户端请求中包含敏感字段（Authorization、Cookie、X-Api-Key），THE Gateway SHALL 在日志输出前将其替换为 `***`。
 5. WHEN 管理员启用 `adminEnabled=false`，THE Gateway SHALL 完全禁用 Web 管理后台与管理 REST API，但不影响 `POST /v1/chat/completions` 等 Client Protocol 出口。
 
-### Requirement 11 — Claude Code / Cursor / Cline 兼容矩阵
+### Requirement 11 — Claude Code / Cursor / Cline / Codex CLI 兼容矩阵
 
-**User Story:** 作为使用 Claude Code、Cursor、Cline、Cherry Studio 等 IDE 工具的开发者，我希望将这些工具的 API Base URL 改为指向 Gateway 即可工作，不必修改工具源码。
+**User Story:** 作为使用 Claude Code、Cursor、Cline、Cherry Studio、Codex CLI、OpenAI Agent SDK 等 IDE 工具的开发者，我希望将这些工具的 API Base URL 改为指向 Gateway 即可工作，不必修改工具源码。
 
 #### Acceptance Criteria
 
@@ -165,3 +172,21 @@
 3. WHEN 客户端使用 Cursor 的 OpenAI 兼容协议调用并要求 `stream: true`，THE Gateway SHALL 保持 SSE 帧格式与 OpenAI chat.completions 一致，确保 Cursor 解析器能识别 `delta.content` 与 `finish_reason`。
 4. WHEN 客户端使用 Cline 调用并请求 tools，THE Gateway SHALL 保证 tool_calls 数组在每个流式 chunk 中按 OpenAI 规范使用 tool_calls.index 增量索引。
 5. WHEN 任意 IDE 工具发起 max_tokens 超过 Provider 上限的请求，THE Gateway SHALL 在 Provider 返回 400 时将错误体按 Client Protocol 重新构造并保留原始 message。
+6. WHEN Codex CLI 或 OpenAI Agent SDK 以 Responses 协议调用 Gateway 并使用 `web_search` 内置工具，THE Gateway SHALL 保证 `output` 数组中包含对应 `web_search_call` 项并保留其 `status`、`results` 字段。
+
+### Requirement 12 — OpenAI Responses 状态管理与内置工具
+
+**User Story:** 作为使用 Codex CLI 或 OpenAI Agent SDK 的开发者，我希望 Gateway 在 OpenAI Responses 协议下支持 `previous_response_id` 续传、reasoning 内省以及 web_search / file_search / code_interpreter 等内置工具，使多轮代理任务可在多 Provider 间无缝切换。
+
+#### Acceptance Criteria
+
+1. WHEN 客户端调用 `POST /v1/responses` 且 Provider 为 OpenAI Responses 原生或兼容中转，THE Gateway SHALL 在转发请求时携带 `previous_response_id` 字段，由 Provider 负责状态管理。
+2. WHEN Provider 不支持 `previous_response_id` 但支持 Chat Completions，THE Gateway SHALL 在 Adapter 中将历史 Responses（从本地 SQLite 响应缓存表读取）展开为完整 `messages` 数组，并写入 `X-Gateway-Warnings: previous_response_id_unsupported`。
+3. WHEN 客户端在 Responses 请求中启用 `reasoning.effort` 或 `reasoning.summary` 字段，THE Gateway SHALL 在 IR 阶段归一化为 `IR.reasoning`，转发至 OpenAI/Anthropic/Gemini 时映射为对应 reasoning 字段；不支持时忽略并写入 `X-Gateway-Warnings`。
+4. WHEN 客户端在 Responses 请求中启用 `web_search` 内置工具，THE Gateway SHALL 在 Provider Adapter 中按 Provider 能力选择路径：
+   - Provider 原生支持 Responses：原样转发；
+   - Provider 支持 Chat Completions + 搜索引擎 API：Adapter 调用搜索引擎并以 `IR.tool_result` 注入消息；
+   - Provider 不支持搜索：返回 400，错误码 `builtin_tool_not_supported`。
+5. WHEN 客户端在 Responses 请求中启用 `code_interpreter` 或 `file_search` 内置工具，THE Gateway SHALL 优先选择支持这些工具的 Provider；不支持时返回 400，错误码 `builtin_tool_not_supported`。
+6. WHEN Responses 客户端请求流式响应，THE Gateway SHALL 按 Responses event 顺序转发：`response.created` → `response.in_progress` → `response.output_text.delta` → `response.output_item.added` → `response.output_item.done` → `response.completed`，保持 event 类型与 `response` 对象引用一致。
+7. WHEN Gateway 完成一个 Responses 请求，THE Gateway SHALL 将响应主体（含 `output` 数组与 `id`）持久化到 `response_cache` 表，TTL 默认 24 小时，可由 Key 的 `responseCacheTtlSeconds` 字段覆盖。

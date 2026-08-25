@@ -5,11 +5,11 @@ Updated: 2026-08-25
 
 ## Description
 
-`ai-gateway` 是本地优先的 npm 包形态 AI API 网关，单一 Node.js 进程承载 HTTP 客户端入口、协议转换、虚拟模型路由、Probe、Key 鉴权、用量计量、Web 管理后台与 CLI。它把 6 类上游 API（OpenAI、OpenAI-Compatible、Anthropic、Google Gemini、豆包 Ark、文心千帆）通过内部协议无关表示统一接入，再以 3 种 Client Protocol 出口（OpenAI Chat Completions、Anthropic Messages、Gemini GenerateContent）对外暴露，按策略在多个 Upstream Model 间路由，并在故障时自动跳过不可用模型。**形态：多 API 进，三协议出。**
+`ai-gateway` 是本地优先的 npm 包形态 AI API 网关，单一 Node.js 进程承载 HTTP 客户端入口、协议转换、虚拟模型路由、Probe、Key 鉴权、用量计量、Web 管理后台与 CLI。它把 6 类上游 API（OpenAI、OpenAI-Compatible、Anthropic、Google Gemini、豆包 Ark、文心千帆）通过内部协议无关表示统一接入，再以 4 种 Client Protocol 出口（OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent）对外暴露，按策略在多个 Upstream Model 间路由，并在故障时自动跳过不可用模型。**形态：多 API 进，四协议出。**
 
 包通过 `npx ai-gateway` 启动，使用 better-sqlite3 持久化配置与用量。Web 后台以单文件 HTML + 原生 JS 实现，无前端构建步骤。CLI 与管理 REST API 暴露完全相同的配置能力。
 
-### 形态总览（多 API 进，三协议出）
+### 形态总览（多 API 进，四协议出）
 
 ```
         ┌─────────────────────── Provider 入口（6 类 API） ───────────────────────┐
@@ -22,8 +22,9 @@ Updated: 2026-08-25
                           └──────────┬───────────┘
                                      │ 阶段二 Serializer
         ┌────────────────────────────┴──────────────────────────────────────────┐
-        │                  Client Protocol 出口（3 种）                         │
-        │  OpenAI Chat Completions │ Anthropic Messages │ Gemini GenerateContent │
+        │                 Client Protocol 出口（4 种）                          │
+        │  OpenAI Chat Completions │ OpenAI Responses                           │
+        │  Anthropic Messages      │ Gemini GenerateContent                     │
         └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -110,7 +111,7 @@ sequenceDiagram
 
 ### 协议转换矩阵
 
-设计上采用 **Provider 入口 × Client 出口** 的二阶段转换：先把 6 类 Provider API 翻译为内部协议无关表示（IR），再从 IR 序列化为 3 种 Client Protocol 出口。
+设计上采用 **Provider 入口 × Client 出口** 的二阶段转换：先把 6 类 Provider API 翻译为内部协议无关表示（IR），再从 IR 序列化为 4 种 Client Protocol 出口。
 
 **阶段一：Provider → IR（6 类入口归一）**
 
@@ -123,13 +124,13 @@ sequenceDiagram
 | Doubao | 走 OpenAI-Compatible 路径，按 OpenAI body 转换 IR |
 | Wenxin | 走 OpenAI-Compatible 路径，按 OpenAI body 转换 IR |
 
-**阶段二：IR → Client Protocol（3 种出口）**
+**阶段二：IR → Client Protocol（4 种出口）**
 
-| IR \ Client | OpenAI | Anthropic | Gemini |
-|---|---|---|---|
-| IR | 直传 | 转换（tool_calls → tool_use blocks、流式 content_block_*） | 转换（tool_calls → functionCall、contents 角色反推） |
+| IR \ Client | OpenAI Chat | OpenAI Responses | Anthropic | Gemini |
+|---|---|---|---|---|
+| IR | 直传 | 转换（messages → input items，output items 流式） | 转换（tool_calls → tool_use blocks、流式 content_block_*） | 转换（tool_calls → functionCall、contents 角色反推） |
 
-由于阶段一已把 6 类入口归一，阶段二只需 3 个出口序列化器，避免了 6×3=18 个直接转换对的组合爆炸。
+由于阶段一已把 6 类入口归一，阶段二只需 4 个出口序列化器，避免了 6×4=24 个直接转换对的组合爆炸。
 
 ## Components and Interfaces
 
@@ -138,6 +139,8 @@ sequenceDiagram
 - 基于 Node `http` 标准库 + 自研轻量路由（避免 Express 依赖，减少 npm 包体积）。
 - 路由前缀：
   - `POST /v1/chat/completions` — OpenAI Chat Completions 入口
+  - `POST /v1/responses` — OpenAI Responses 入口
+  - `POST /v1/responses/:response_id` — OpenAI Responses 单项查询
   - `POST /v1/messages` — Anthropic Messages 入口
   - `POST /v1/messages/count_tokens` — Anthropic Token 计数
   - `POST /v1beta/models/:model\\:action` — Gemini 入口（generateContent / streamGenerateContent / countTokens）
@@ -146,7 +149,7 @@ sequenceDiagram
   - `GET /admin` — Web 后台入口（返回单文件 HTML）
   - `GET /admin/api/*` — 管理 REST API（受 Admin Token 保护）
   - `GET /healthz` — 存活探针
-- 流式响应通过 `res.write` + `Content-Type: text/event-stream` 实现。
+- 流式响应通过 `res.write` + `Content-Type: text/event-stream` 实现。Responses 流式 event 命名空间为 `response.*`（如 `response.created`、`response.output_text.delta`），与 OpenAI 官方规范一致。
 
 ### 2. Auth Middleware（`src/server/middleware/auth.ts`）
 
@@ -180,9 +183,14 @@ sequenceDiagram
 
 #### 4.2 Client Serializers（`src/clients/`，出口序列化）
 
-每个 Serializer 实现 `serialize(ir, options) → ClientResponse | AsyncIterable<ClientEvent>`，**只关心从 IR 序列化为 3 种 Client Protocol**。
+每个 Serializer 实现 `serialize(ir, options) → ClientResponse | AsyncIterable<ClientEvent>`，**只关心从 IR 序列化为 4 种 Client Protocol**。
 
-- `openai-client.ts` — IR → OpenAI Chat Completions（直传）。
+- `openai-chat-client.ts` — IR → OpenAI Chat Completions（直传）。
+- `openai-responses-client.ts` — IR → OpenAI Responses。处理：
+  - `IR.messages` → `input` 数组（message / function_call / function_call_output / reasoning item 类型）；
+  - `IR.tools` 中 `provider_executed: true` 的内置工具（web_search、code_interpreter、file_search）按 Responses 规范原样输出到 `tools` 字段；
+  - 流式 event：`response.created` → `response.in_progress` → `response.output_text.delta` → `response.output_item.added` → `response.output_item.done` → `response.completed`，每个 event 携带同一 `response` 对象引用；
+  - `previous_response_id` 在请求中透传 Provider，响应写入 `response_cache` 表供后续 `POST /v1/responses/:id` 单项查询。
 - `anthropic-client.ts` — IR → Anthropic Messages。处理 IR.tool_calls → tool_use 块、流式 content_block_start / content_block_delta / content_block_stop、IR.thinking → thinking blocks、cache_control 还原。
 - `gemini-client.ts` — IR → Gemini GenerateContent。处理 IR.tool_calls → functionCall、contents 角色反推、IR.thinking → thoughts。
 
@@ -192,7 +200,7 @@ sequenceDiagram
 - 缺失组合（如 Client=Anthropic × Provider=Anthropic）走直通路径（直传）。
 - 缺失能力时返回 `unsupported_capability` 错误。
 
-由于阶段一已把 6 类入口归一为 IR，阶段二只需 3 个 Serializer × 6 个 Adapter = 18 个组合，但其中 Adapter 实现极薄（多数走 OpenAI-compatible 模板），新增 Provider 只需新增一个 Adapter 文件。
+由于阶段一已把 6 类入口归一为 IR，阶段二只需 4 个 Serializer × 6 个 Adapter = 24 个组合，但其中 Adapter 实现极薄（多数走 OpenAI-compatible 模板），新增 Provider 只需新增一个 Adapter 文件。
 
 #### 4.4 IR（内部协议无关表示，`src/ir/types.ts`）
 
@@ -202,10 +210,13 @@ type IRContent = IRText | IRImage | IRAudio | IRToolUse | IRToolResult | IRThink
 type IRToolUse = { id: string; name: string; arguments: unknown };
 type IRToolResult = { toolCallId: string; content: string | IRContent[]; isError?: boolean };
 type IRThinking = { text: string; signature?: string };
-type IRRequest = { model: string; messages: IRMessage[]; tools?: IRTool[]; toolChoice?: 'auto' | 'none' | { name: string }; temperature?: number; topP?: number; maxTokens?: number; stop?: string[]; responseFormat?: IRResponseFormat; stream: boolean; metadata?: Record<string, unknown> };
-type IRResponse = { id: string; model: string; choices: IRChoice[]; usage: IRUsage; finishReason: IRFinishReason };
+type IRReasoning = { effort?: 'low' | 'medium' | 'high'; summary?: 'auto' | 'concise' | 'detailed'; encryptedContent?: string };
+type IRTool = { name: string; description?: string; parameters: unknown; providerExecuted?: boolean; builtinKind?: 'web_search' | 'code_interpreter' | 'file_search' };
+type IRRequest = { model: string; messages: IRMessage[]; tools?: IRTool[]; toolChoice?: 'auto' | 'none' | { name: string }; reasoning?: IRReasoning; continuation?: { previousResponseId?: string; conversationId?: string }; temperature?: number; topP?: number; maxTokens?: number; stop?: string[]; responseFormat?: IRResponseFormat; stream: boolean; metadata?: Record<string, unknown> };
+type IRResponse = { id: string; model: string; choices: IRChoice[]; usage: IRUsage; finishReason: IRFinishReason; reasoning?: IRReasoning; outputItems?: IROutputItem[] };
 type IRUsage = { promptTokens: number; completionTokens: number; cachedTokens: number; totalTokens: number };
 type IRFinishReason = 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'error';
+type IROutputItem = IRTextOutputItem | IRFunctionCallItem | IRFunctionCallOutputItem | IRReasoningItem | IRWebSearchItem;
 ```
 
 ### 5. Probe Worker（`src/probe/worker.ts`）
@@ -361,6 +372,7 @@ CREATE TABLE keys (
   rpm_limit INTEGER,
   tpm_limit INTEGER,
   allowed_models_json TEXT,
+  response_cache_ttl_seconds INTEGER NOT NULL DEFAULT 86400,
   created_at INTEGER NOT NULL,
   revoked_at INTEGER
 );
@@ -398,6 +410,22 @@ CREATE TABLE usage_records (
 CREATE INDEX idx_usage_created_at ON usage_records(created_at DESC);
 CREATE INDEX idx_usage_key_created ON usage_records(key_id, created_at DESC);
 CREATE INDEX idx_usage_upstream_created ON usage_records(upstream_model_id, created_at DESC);
+
+CREATE TABLE response_cache (
+  id TEXT PRIMARY KEY,
+  key_id TEXT REFERENCES keys(id) ON DELETE CASCADE,
+  client_protocol TEXT NOT NULL CHECK (client_protocol IN ('OpenAI-Chat','OpenAI-Responses','Anthropic-Messages','Gemini-GenerateContent')),
+  virtual_model_id TEXT,
+  upstream_provider_id TEXT,
+  upstream_model_id TEXT,
+  request_json TEXT NOT NULL,
+  response_json TEXT NOT NULL,
+  ttl_seconds INTEGER NOT NULL DEFAULT 86400,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX idx_response_cache_expires ON response_cache(expires_at);
+CREATE INDEX idx_response_cache_key_created ON response_cache(key_id, created_at DESC);
 
 CREATE TABLE schema_version (
   version INTEGER PRIMARY KEY
@@ -469,15 +497,17 @@ CREATE TABLE schema_version (
 
 ## Correctness Properties
 
-1. **协议一致性**：无论上游 Provider 是 6 类 API 中的哪一种，Client Protocol 出口（OpenAI/Anthropic/Gemini）响应体的字段集只受 Client Protocol 规范约束；IR 阶段不暴露任何 Provider 专属字段，Provider 专属字段以 `X-Gateway-Forwarded-*` 头透传。
+1. **协议一致性**：无论上游 Provider 是 6 类 API 中的哪一种，Client Protocol 出口（OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini GenerateContent）响应体的字段集只受 Client Protocol 规范约束；IR 阶段不暴露任何 Provider 专属字段，Provider 专属字段以 `X-Gateway-Forwarded-*` 头透传。
 2. **Token 守恒**：response 中 `usage.prompt_tokens + usage.completion_tokens == usage.total_tokens`，流式结束时累计 total_tokens 等于非流式一次性返回的 total_tokens。
-3. **路由不变量**：一次请求最多触发一次 UpstreamModel 选择；切换协议或路由时不修改已发出的 HTTP 请求体。
-4. **可用性不变量**：当 UpstreamModel 状态为 unavailable，Router SHALL 不将其纳入选择；当所有成员 unavailable，Router SHALL 返回 502。
-5. **幂等性**：相同请求体的非流式请求两次，Token Usage 差异不超过 5%（Provider 自身的随机性范围）。
-6. **加密不变量**：`providers.api_key_ciphertext` 不可被无主密钥进程解密；`keys.key_hash` 不可被反向为 Key 明文。
-7. **降级不变量**：当首选 Provider 不可用时，Failover 策略 SHALL 在 1 次重试内切换至次选，且对客户端表现为单次请求完成时间不显著增长。
-8. **统计一致性**：Overview 仪表盘 KPI 卡片四个数字（总请求、总 Tokens、总费用、P95）的累加值 SHALL 等于 `GET /admin/api/usage` 在同 range 下 groupBy=day 的累加值（误差 ≤ 0.01 USD / 1 token）。
-9. **时序对齐**：`/stats/totals` 与 `/usage/timeseries` 在同一 range 下的桶边界 SHALL 一致，跨源不会出现同一时刻两个不同的总数。
+3. **Responses 守恒**：OpenAI Responses 序列化器 SHALL 保证每个流式 event 携带同一 `response` 对象引用（含同一 `id`），`output` 数组的 `item.id` 在整个流生命周期内稳定不变。
+4. **路由不变量**：一次请求最多触发一次 UpstreamModel 选择；切换协议或路由时不修改已发出的 HTTP 请求体。
+5. **可用性不变量**：当 UpstreamModel 状态为 unavailable，Router SHALL 不将其纳入选择；当所有成员 unavailable，Router SHALL 返回 502。
+6. **幂等性**：相同请求体的非流式请求两次，Token Usage 差异不超过 5%（Provider 自身的随机性范围）。
+7. **加密不变量**：`providers.api_key_ciphertext` 不可被无主密钥进程解密；`keys.key_hash` 不可被反向为 Key 明文。
+8. **降级不变量**：当首选 Provider 不可用时，Failover 策略 SHALL 在 1 次重试内切换至次选，且对客户端表现为单次请求完成时间不显著增长。
+9. **统计一致性**：Overview 仪表盘 KPI 卡片四个数字（总请求、总 Tokens、总费用、P95）的累加值 SHALL 等于 `GET /admin/api/usage` 在同 range 下 groupBy=day 的累加值（误差 ≤ 0.01 USD / 1 token）。
+10. **时序对齐**：`/stats/totals` 与 `/usage/timeseries` 在同一 range 下的桶边界 SHALL 一致，跨源不会出现同一时刻两个不同的总数。
+11. **Responses 缓存一致**：当 `previous_response_id` 命中 `response_cache` 表，Responses Serializer SHALL 在 60 秒内返回与原始响应一致的 `output` 数组与 `id` 字段。
 
 ## Error Handling
 
@@ -489,6 +519,8 @@ CREATE TABLE schema_version (
 | Key 限额超限 | 429 | `rate_limit_exceeded` / `token_quota_exceeded` | 返回 Retry-After |
 | 模型不存在 / 不允许 | 404 / 403 | `model_not_found` / `model_not_allowed` | 原样返回 |
 | 协议转换不支持 | 400 | `unsupported_capability` | 返回详细解释（如 Provider 不支持 tools、流式与 response_format 互斥等） |
+| Responses 内置工具不支持 | 400 | `builtin_tool_not_supported` | 当 Provider 不支持 web_search/code_interpreter/file_search 时返回 |
+| Responses 续传不支持 | 200 | `previous_response_id_unsupported` | 写入响应头 `X-Gateway-Warnings`，正文正常返回（Gateway 已退化为完整 messages 数组） |
 | 上游 4xx | 透传 | 透传 | 包成 Client Protocol 错误体 |
 | 上游 5xx | 502 | `upstream_5xx` | 触发 Failover / 记录探测失败 |
 | 上游超时 | 504 | `upstream_timeout` | 触发 Failover |
@@ -514,8 +546,9 @@ CREATE TABLE schema_version (
 
 - 协议转换器（两阶段）：
   - 阶段一 Adapter：6 类 Provider 各 1 套 fixture，覆盖非流式 / 流式 / 工具调用 / thinking / cache_control。
-  - 阶段二 Serializer：3 种 Client Protocol 各 1 套 fixture，覆盖 IR → Client 的非流式与流式输出。
-  - IR 守恒：相同 IR 输入经过 3 个 Serializer 后，关键字段（tool_calls.id、usage.total_tokens、finish_reason）数值一致。
+  - 阶段二 Serializer：4 种 Client Protocol 各 1 套 fixture，覆盖 IR → Client 的非流式与流式输出。
+  - IR 守恒：相同 IR 输入经过 4 个 Serializer 后，关键字段（tool_calls.id、usage.total_tokens、finish_reason）数值一致。
+  - Responses 专属：覆盖 input items（message / function_call / reasoning / web_search_call）映射、流式 event 顺序（created → in_progress → delta → item.added → item.done → completed）、同一 `response.id` 在整个流生命周期内稳定、`previous_response_id` 退化路径。
   - 非流式、文本、tools、tool_choice、system、stream、temperature、max_tokens、top_p、response_format
   - 流式：OpenAI `delta.content` / `delta.tool_calls`、Anthropic `content_block_start` + `input_json_delta`、Gemini `candidates[0].content.parts[].text` 与 `functionCall`
   - thinking / reasoning 字段
@@ -541,11 +574,12 @@ CREATE TABLE schema_version (
 
 ### 端到端兼容测试（`test/e2e/`）
 
-- 通过真实 CLI（`anthropic` SDK、OpenAI Node SDK、Google Generative AI SDK）以子进程形式调用 Gateway。
-- Claude Code / Cursor / Cline 兼容矩阵：
+- 通过真实 CLI（`anthropic` SDK、OpenAI Node SDK、Google Generative AI SDK、`openai/responses` SDK）以子进程形式调用 Gateway。
+- Claude Code / Cursor / Cline / Codex CLI 兼容矩阵：
   - 用 `@anthropic-ai/sdk` 模拟 Claude Code 调用 Anthropic 入口 → 转发到 OpenAI Provider，断言 tool_use 双向正确。
-  - 用 `openai` SDK 模拟 Cursor 调用 OpenAI 入口 → 转发到 Anthropic Provider，断言 stream chunk 格式正确。
-  - 用 `openai` SDK 模拟 Cline 调用 OpenAI 入口 → 转发到 Gemini Provider，断言 function_call 完整来回。
+  - 用 `openai` SDK 模拟 Cursor 调用 OpenAI Chat Completions 入口 → 转发到 Anthropic Provider，断言 stream chunk 格式正确。
+  - 用 `openai` SDK 模拟 Cline 调用 OpenAI Chat Completions 入口 → 转发到 Gemini Provider，断言 function_call 完整来回。
+  - 用 `openai` SDK（`client.responses.create`）模拟 Codex CLI 调用 OpenAI Responses 入口 → 转发到 Anthropic Provider，断言 output items 正确还原为 Responses 规范。
 
 ### 端到端探测测试
 
@@ -567,3 +601,6 @@ CREATE TABLE schema_version (
 [^6]: 百度智能云千帆 ModelBuilder — https://cloud.baidu.com/doc/WENXINWORKSHOP/s/hlrk4akp7
 [^7]: Claude Code 兼容要求（Anthropic 官方 OpenAI 兼容说明的限制提示）— https://docs.anthropic.com/en/api/openai-sdk
 [^8]: Cloudflare AI Gateway 局限（用于反面案例）— https://developers.cloudflare.com/ai-gateway/
+[^9]: OpenAI Responses API 规范 — https://platform.openai.com/docs/api-reference/responses
+[^10]: OpenAI Responses 流式 event 规范 — https://platform.openai.com/docs/guides/streaming-responses
+[^11]: OpenAI Agent SDK 与 Codex CLI 文档 — https://platform.openai.com/docs/guides/agents
