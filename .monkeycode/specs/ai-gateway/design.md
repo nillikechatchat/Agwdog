@@ -42,7 +42,7 @@ graph TB
         direction TB
         HTTP["HTTP Server<br/>(Node http + Express-like router)"]
         Auth["Auth Middleware<br/>(Virtual Key + Admin Token)"]
-        Router["Request Router<br/>(VirtualModel → Upstream)"]
+        Router["Request Router<br/>(model id → N Providers<br/>RoundRobin/WeightedRandom/<br/>Failover/LowestLatency)"]
         Convert["Protocol Converters<br/>(OpenAI / Anthropic / Gemini<br/>+ Doubao / Wenxin)"]
         Probe["Probe Worker<br/>(cron-like timer)"]
         Usage["Usage Recorder"]
@@ -160,13 +160,42 @@ sequenceDiagram
 
 ### 3. Request Router（`src/router/index.ts`）
 
-- 解析请求体中的 `model` 字段，先匹配 VirtualModel，再回退到 UpstreamModel 直接转发。
-- 根据 VirtualModel.strategy 选择 UpstreamMember：
-  - `RoundRobin` — 进程内原子计数器。
-  - `WeightedRandom` — 累计权重 + `crypto.randomInt`。
-  - `Failover` — 按 priority 升序，跳过 unavailable。
-  - `LowestLatency` — 滑动窗口（默认 5 次）平均延迟最低且 available 的成员。
-- 若所有成员 unavailable，返回 502 `all_upstreams_unavailable`。
+**职责**：按 client 请求中的 `model` 字段，先匹配 VirtualModel 选择一个 Upstream Member，再回退到 UpstreamModel 直接转发。
+
+#### 3.1 解析阶段
+
+1. 读取 `req.body.model`，去除前后空白。
+2. 在内存中的 `virtualModelIndex: Map<name, VirtualModel>` 查找命中：
+   - 命中 → 进入 3.2 路由策略选择；
+   - 未命中 → 在 `upstreamModelIndex: Map<modelId, UpstreamModel>` 查找命中后直传该 UpstreamModel（仍受 availability 与 Probe 约束）。
+3. 命中的 `(providerId, providerModelId)` 同时通过 `availabilityCache` 校验状态为 `available` 或 `degraded`；否则跳过该候选；若所有候选都不可用，返回 502 `all_upstreams_unavailable`。
+
+#### 3.2 路由策略（4 种）
+
+每种策略在选择完成后写入 `req.gateway.routedProviderId` 与 `req.gateway.routedModelId`，由 HTTP 层在响应中以头暴露。
+
+| Strategy | 算法 |
+|---|---|
+| `RoundRobin` | 进程内原子计数器 `roundRobinCounters[virtualModelId]++` 取模成员数；多个 Provider 实例按加入顺序循环，确保各 Provider 实例被均匀访问。 |
+| `WeightedRandom` | 按成员 weight 计算累计权重数组，`crypto.randomInt(0, totalWeight)` 落在哪一段就选哪个；权重全为 0 返回 400 `invalid_weights`。 |
+| `Failover` | 按 priority 升序遍历成员，跳过 `availabilityCache.status === 'unavailable'` 的实例；首个可用即返回。 |
+| `LowestLatency` | 维护 `latencyWindow` 大小的滑动窗口（默认 5 次 Probe 平均），跳过 unavailable 实例；同延迟时按 priority 升序兜底。 |
+
+#### 3.3 多协议透明
+
+当选中的成员来自不同协议家族（例：OpenAI 直连 + Anthropic 兼容中转），Router 不感知协议差异——所有成员都先归一为 IR，再由 Provider Adapter 还原为目标 Provider 请求体；Client Serializer 再按 Client Protocol 序列化出口。同一 Virtual Model 跨协议成员的 routing 因此对客户端透明。
+
+#### 3.4 Dry-run
+
+`POST /admin/api/virtual-models/:id/dry-run` 不实际调用 Provider，仅根据当前 availability 与权重选择逻辑返回将命中的成员 id，便于运维调试。
+
+#### 3.5 响应头
+
+| Header | 含义 |
+|---|---|
+| `X-Gateway-Routed-Provider` | 实际命中的 providerId |
+| `X-Gateway-Routed-Model` | 实际命中的 providerModelId |
+| `X-Gateway-Routed-Strategy` | 命中的路由策略 |
 
 ### 4. Protocol Converters（两阶段：adapters + clients）
 
@@ -222,10 +251,18 @@ type IROutputItem = IRTextOutputItem | IRFunctionCallItem | IRFunctionCallOutput
 ### 5. Probe Worker（`src/probe/worker.ts`）
 
 - 启动时建立 `setInterval`，间隔取自 `probeIntervalMinutes`（0 关闭）。
-- 每轮遍历所有 enabled UpstreamModel，对每个发送最小化探测请求（OpenAI/Anthropic/Gemini 使用 `max_tokens: 1`；豆包、文心同样使用 1 token）。
+- 每轮遍历所有 enabled `(providerId, providerModelId)` 组合，对每个发送最小化探测请求（OpenAI/Anthropic/Gemini 使用 `max_tokens: 1`；豆包、文心同样使用 1 token）。
 - 写入 `probe_results` 表（latency、statusCode、success、errorMessage、probedAt）。
-- 维护内存中的 `availabilityCache`：连续失败 ≥ failureThreshold → unavailable；连续成功 ≥ recoveryThreshold → available。
-- 触发真实请求失败时同步调用 `availabilityCache.recordFailure(modelId)`，触发降级。
+- 维护内存中的 `availabilityCache`，每个 Upstream Model 维护三态状态机：
+  - `available` — 正常路由；
+  - `degraded` — 最近 `latencyWindow` 次 Probe 成功率 < 80%，仍参与路由但 Router 会在 LowestLatency 策略中降低其优先级；
+  - `unavailable` — 连续失败 ≥ failureThreshold，不参与路由。
+- 状态机迁移规则：
+  - `available` → `degraded`：最近 N 次 Probe 成功率 < 80%；
+  - `available/degraded` → `unavailable`：连续失败 ≥ failureThreshold；
+  - `unavailable` → `available`：连续成功 ≥ recoveryThreshold。
+- 真实请求收到 5xx/超时时同步调用 `availabilityCache.recordFailure(modelId)`，按上述规则推进状态机。
+- `GET /v1/models` 在每个 model 的 `metadata.availability` 中暴露 `availabilityCache.status`；`metadata.endpoints` 数组列出每个 `(providerId, providerModelId)` 实例的 availability、latencyMsP50、latencyMsP95。
 
 ### 6. Usage Recorder（`src/usage/recorder.ts`）
 
@@ -245,6 +282,12 @@ type IROutputItem = IRTextOutputItem | IRFunctionCallItem | IRFunctionCallOutput
 | POST | `/admin/api/providers/:id/sync-models` | 触发模型同步 |
 | GET | `/admin/api/virtual-models` | 列出虚拟模型 |
 | POST | `/admin/api/virtual-models` | 创建虚拟模型 |
+| GET | `/admin/api/virtual-models/:id` | 虚拟模型详情（含所有成员） |
+| PATCH | `/admin/api/virtual-models/:id` | 更新虚拟模型（strategy、成员、权重、priority） |
+| DELETE | `/admin/api/virtual-models/:id` | 删除虚拟模型 |
+| GET | `/admin/api/virtual-models/:id/availability` | 虚拟模型所有成员的 availability 状态 |
+| POST | `/admin/api/virtual-models/:id/dry-run` | 模拟路由选择，返回将命中的成员 id |
+| GET | `/admin/api/availability` | 全量 UpstreamModel 可用性快照 |
 | GET | `/admin/api/keys` | 列出 Key（不返回明文） |
 | POST | `/admin/api/keys` | 创建 Key（返回一次明文） |
 | DELETE | `/admin/api/keys/:id` | 吊销 Key |
@@ -256,6 +299,8 @@ type IROutputItem = IRTextOutputItem | IRFunctionCallItem | IRFunctionCallOutput
 | GET | `/admin/api/stats/error-rate?range=24h` | 错误率与错误码 Top10 |
 | GET | `/admin/api/stats/top-models?limit=10&range=7d&by=cost\|tokens\|requests` | Top 模型榜单 |
 | GET | `/admin/api/stats/heatmap?dimension=hour-of-day×day-of-week&range=30d` | 流量热力图 |
+| GET | `/admin/api/stats/routing-distribution?range=24h` | VirtualModel 路由命中分布（每成员命中数） |
+| GET | `/admin/api/stats/provider-availability-matrix` | Provider × UpstreamModel 可用性矩阵 |
 | POST | `/admin/api/test` | 发送一次真实请求用于连通性测试 |
 | GET | `/admin/api/probe-results?modelId=...&range=24h` | 探测历史 |
 
@@ -289,6 +334,8 @@ Overview Tab 默认进入，按 `range=24h` 加载七组指标，使用 SVG 自�
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  [KPI 卡片] 总请求 / 总 Tokens / 总费用 / 活跃 Key / P95    │
+├─────────────────────────────────────────────────────────────┤
+│  [模型可用性卡片条]  全部 │ Available │ Degraded │ Unavail. │
 ├──────────────────────────┬──────────────────────────────────┤
 │  时序面积图 (24h)        │  错误率折线 (24h)                │
 │  Requests × Tokens       │                                  │
@@ -296,10 +343,18 @@ Overview Tab 默认进入，按 `range=24h` 加载七组指标，使用 SVG 自�
 │  Provider 占比环形图     │  Top 模型柱状 (by cost)         │
 ├──────────────────────────┼──────────────────────────────────┤
 │  P50/P95/P99 延迟柱      │  Key 用量 Top10 横向柱           │
+├──────────────────────────┼──────────────────────────────────┤
+│  VirtualModel 路由命中分布 │  Provider 实例可用性矩阵        │
 ├──────────────────────────┴──────────────────────────────────┤
 │  30 天流量热力图 (hour × weekday)                            │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+新增可视化：
+
+- **模型可用性卡片条**：四格（全部 / Available / Degraded / Unavailable），数字取自 `/admin/api/availability`。
+- **VirtualModel 路由命中分布**：堆叠柱图，x 轴是 VirtualModel name，y 轴是请求数，按命中成员堆叠颜色（每成员一色）；用于一眼看出每个 model id 的流量在多个服务商间如何分配。
+- **Provider 实例可用性矩阵**：行为 Provider，列为 UpstreamModelId，单元格颜色按 availability 着色（绿/黄/红），便于识别"哪个 Provider 的哪个模型"在降级。
 
 实现细节：
 
@@ -341,6 +396,13 @@ CREATE TABLE provider_models (
   supports_tools INTEGER NOT NULL DEFAULT 1,
   supports_vision INTEGER NOT NULL DEFAULT 0,
   enabled INTEGER NOT NULL DEFAULT 1,
+  availability TEXT NOT NULL DEFAULT 'available' CHECK (availability IN ('available','degraded','unavailable')),
+  consecutive_failures INTEGER NOT NULL DEFAULT 0,
+  consecutive_successes INTEGER NOT NULL DEFAULT 0,
+  last_probe_at INTEGER,
+  unavailable_since INTEGER,
+  latency_ms_p50 INTEGER,
+  latency_ms_p95 INTEGER,
   created_at INTEGER NOT NULL,
   UNIQUE (provider_id, model_id)
 );
@@ -360,6 +422,8 @@ CREATE TABLE virtual_model_members (
   upstream_model_id TEXT NOT NULL REFERENCES provider_models(id) ON DELETE CASCADE,
   weight INTEGER NOT NULL DEFAULT 1,
   priority INTEGER NOT NULL DEFAULT 100,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  joined_at INTEGER NOT NULL,
   PRIMARY KEY (virtual_model_id, upstream_model_id)
 );
 
@@ -434,7 +498,9 @@ CREATE TABLE schema_version (
 
 ### 内存数据结构
 
-- `availabilityCache: Map<upstreamModelId, { status, consecutiveFailures, consecutiveSuccesses }>` — Probe 与 Router 共用。
+- `availabilityCache: Map<upstreamModelId, { status: 'available' | 'degraded' | 'unavailable'; consecutiveFailures: number; consecutiveSuccesses: number; latencyWindow: number[]; recentSuccessRate: number; lastUpdatedAt: number }>` — Probe 与 Router 共用。
+- `virtualModelIndex: Map<virtualModelName, { id, strategy, latencyWindow, members: { upstreamModelId, weight, priority, enabled }[] }>` — Router 启动时从 SQLite 加载，启动后变更通过 admin API 同步更新内存索引。
+- `upstreamModelIndex: Map<modelId, providerId[]>` — 反向索引，记录每个逻辑 model id 被哪些 Provider 实例支撑，用于 `/v1/models` 与 dry-run。
 - `rpmTpmWindow: Map<keyId, { windowStart, requestCount, tokenCount }>` — 每 60 秒滚动一次。
 - `roundRobinCounters: Map<virtualModelId, number>` — Round Robin 计数。
 
@@ -477,11 +543,31 @@ CREATE TABLE schema_version (
   ],
   "virtualModels": [
     {
-      "name": "smart",
+      "name": "gpt-4o",
+      "strategy": "WeightedRandom",
+      "latencyWindow": 5,
+      "members": [
+        { "upstreamModelRef": "openai-official/gpt-4o", "weight": 70, "priority": 1 },
+        { "upstreamModelRef": "azure-openai/gpt-4o", "weight": 20, "priority": 2 },
+        { "upstreamModelRef": "openai-compatible-mirror/gpt-4o", "weight": 10, "priority": 3 }
+      ]
+    },
+    {
+      "name": "claude-sonnet",
       "strategy": "Failover",
       "members": [
+        { "upstreamModelRef": "anthropic-official/claude-sonnet-4-5", "priority": 1 },
+        { "upstreamModelRef": "anthropic-mirror/claude-sonnet-4-5", "priority": 2 }
+      ]
+    },
+    {
+      "name": "smart-router",
+      "strategy": "LowestLatency",
+      "latencyWindow": 10,
+      "members": [
         { "upstreamModelRef": "openai-official/gpt-4o", "priority": 1 },
-        { "upstreamModelRef": "anthropic-official/claude-sonnet-4-5", "priority": 2 }
+        { "upstreamModelRef": "anthropic-official/claude-sonnet-4-5", "priority": 2 },
+        { "upstreamModelRef": "doubao-ark/doubao-pro-32k", "priority": 3 }
       ]
     }
   ],
@@ -508,6 +594,9 @@ CREATE TABLE schema_version (
 9. **统计一致性**：Overview 仪表盘 KPI 卡片四个数字（总请求、总 Tokens、总费用、P95）的累加值 SHALL 等于 `GET /admin/api/usage` 在同 range 下 groupBy=day 的累加值（误差 ≤ 0.01 USD / 1 token）。
 10. **时序对齐**：`/stats/totals` 与 `/usage/timeseries` 在同一 range 下的桶边界 SHALL 一致，跨源不会出现同一时刻两个不同的总数。
 11. **Responses 缓存一致**：当 `previous_response_id` 命中 `response_cache` 表，Responses Serializer SHALL 在 60 秒内返回与原始响应一致的 `output` 数组与 `id` 字段。
+12. **多服务商路由不变量**：同一 Virtual Model 包含来自不同 Provider 协议的成员时，Router SHALL 不感知协议差异；所有成员选择都通过 IR 中介后再发往目标 Provider Adapter。
+13. **可用性不变量（写扩散）**：`availabilityCache` 状态变更 SHALL 在 100ms 内反映到 Router 与 `GET /v1/models` 的响应中，不允许出现"上游已被降级但 Router 仍选中"的窗口。
+14. **Dry-run 等价性**：`POST /virtual-models/:id/dry-run` 返回的成员 SHALL 与同条件下真实请求命中的成员完全一致（同 race condition 忽略不计）。
 
 ## Error Handling
 
@@ -519,6 +608,7 @@ CREATE TABLE schema_version (
 | Key 限额超限 | 429 | `rate_limit_exceeded` / `token_quota_exceeded` | 返回 Retry-After |
 | 模型不存在 / 不允许 | 404 / 403 | `model_not_found` / `model_not_allowed` | 原样返回 |
 | 协议转换不支持 | 400 | `unsupported_capability` | 返回详细解释（如 Provider 不支持 tools、流式与 response_format 互斥等） |
+| Virtual Model 权重非法 | 400 | `invalid_weights` | 当 WeightedRandom 策略下所有成员 weight 之和为 0 时返回 |
 | Responses 内置工具不支持 | 400 | `builtin_tool_not_supported` | 当 Provider 不支持 web_search/code_interpreter/file_search 时返回 |
 | Responses 续传不支持 | 200 | `previous_response_id_unsupported` | 写入响应头 `X-Gateway-Warnings`，正文正常返回（Gateway 已退化为完整 messages 数组） |
 | 上游 4xx | 透传 | 透传 | 包成 Client Protocol 错误体 |
@@ -553,7 +643,14 @@ CREATE TABLE schema_version (
   - 流式：OpenAI `delta.content` / `delta.tool_calls`、Anthropic `content_block_start` + `input_json_delta`、Gemini `candidates[0].content.parts[].text` 与 `functionCall`
   - thinking / reasoning 字段
   - 错误响应：401 / 429 / 500 / 502 / 504
-- Router：4 种 strategy 各 5 个 case，含 unavailable 跳过、weight=0、latencyWindow=0、单成员。
+- Router：4 种 strategy 各 5 个 case，含 unavailable 跳过、weight=0、latencyWindow=0、单成员、跨协议成员（如 OpenAI + Anthropic 同一 VirtualModel）。
+- 多服务商负载均衡：当 VirtualModel 包含来自不同 Provider 的同一逻辑 model，验证：
+  - RoundRobin 按成员加入顺序循环；
+  - WeightedRandom 权重抽样分布在 ±10% 误差内（1000 次模拟）；
+  - Failover 在首选被标记 unavailable 后自动切次选；
+  - LowestLatency 选择窗口内平均延迟最低的成员；
+  - dry-run 与实际命中结果一致。
+- 可用性状态机：Probe 连续失败 3 次 → unavailable、连续成功 2 次 → available；degraded 状态由成功率 < 80% 触发；状态变更后 Router 与 `/v1/models` 同步更新。
 - Probe Worker：连续失败达到 failureThreshold 触发降级，连续成功达到 recoveryThreshold 恢复。
 - Usage Recorder：reported 与 estimated 两条路径、cost 计算含 cachedTokens。
 - Key 鉴权：明文 vs hash、revoked、限额、白名单。

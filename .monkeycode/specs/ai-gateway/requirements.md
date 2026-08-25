@@ -72,19 +72,23 @@
 12. WHEN 上游以 OpenAI Responses 协议返回（Provider 为 OpenAI Responses 原生或兼容 Responses 的中转），THE Gateway SHALL 在 Responses Serializer 中按 Responses Item 类型逐项渲染 `output` 数组，并在流式响应中按 Responses event 类型（`response.created`、`response.output_text.delta`、`response.output_item.done`、`response.completed`）顺序转发。
 13. WHEN 客户端以 OpenAI Responses 协议调用并携带 `previous_response_id`，THE Gateway SHALL 在 Provider 不支持 Responses 续传时退化为完整 messages 数组（从本地响应缓存或 Provider 历史接口拉取）并写入 `X-Gateway-Warnings`。
 
-### Requirement 4 — Virtual Model 与路由策略
+### Requirement 4 — Virtual Model 多服务商路由
 
-**User Story:** 作为平台用户，我希望把若干上游模型组合为一个 Virtual Model 并按策略自动路由，这样主模型故障时业务不中断、不同场景可走不同模型。
+**User Story:** 作为平台用户，我希望用一个 client model id（如 `gpt-4o` 或 `claude-sonnet`）对应多个上游服务商（OpenAI、Azure、任意 OpenAI 兼容中转、Anthropic 直连、文心、豆包）的同一模型，并按策略自动分发或故障切换，这样主服务商故障时业务不中断、不同地区/不同成本可走不同渠道。
 
 #### Acceptance Criteria
 
-1. WHEN 管理员创建一个 Virtual Model 并选择至少一个 Upstream Model 作为成员，THE Gateway SHALL 持久化该 Virtual Model 及其 strategy 字段。
-2. WHEN 客户端请求中的 model 字段命中某个 Virtual Model，THE Gateway SHALL 按该 Virtual Model 的 strategy 字段选择一个 Upstream Model 进行实际转发。
-3. WHEN strategy 为 `Round Robin`，THE Gateway SHALL 按请求到达顺序在成员间循环选择，并在同一 Virtual Model 实例内保持计数单调递增。
-4. WHEN strategy 为 `Weighted Random`，THE Gateway SHALL 按成员 weight 字段计算累计权重并按均匀随机抽样选择成员，所有成员的 weight 之和必须大于零，否则返回 400 错误。
-5. WHEN strategy 为 `Failover`，THE Gateway SHALL 按成员 priority 升序选择首个可用成员；当首选成员在最近一次 Probe 中被标记为 unavailable，THE Gateway SHALL 跳过该成员选择次选。
-6. WHEN strategy 为 `Lowest Latency`，THE Gateway SHALL 选择最近 N 次 Probe 中平均延迟最低且状态为 available 的成员，N 默认取 5，可由 Virtual Model 的 latencyWindow 字段覆盖。
-7. WHEN strategy 为 `Failover` 且所有成员均标记为 unavailable，THE Gateway SHALL 返回 502 错误体，错误码为 `all_upstreams_unavailable`。
+1. WHEN 管理员创建一个 Virtual Model 并选择至少一个 `(providerId, providerModelId)` 组合作为成员，THE Gateway SHALL 持久化该 Virtual Model 的 id、name、strategy 与成员列表，name 作为客户端调用时的 model id。
+2. WHEN 同一 Virtual Model 的成员来自多个 Provider 且这些 Provider 属于不同协议家族，THE Gateway SHALL 在 Adapter 层把请求归一为 IR 后再分发，确保不同协议成员对同一 Virtual Model 透明。
+3. WHEN 客户端请求中的 model 字段命中某个 Virtual Model，THE Gateway SHALL 按该 Virtual Model 的 strategy 字段选择一个成员进行实际转发。
+4. WHEN strategy 为 `RoundRobin`，THE Gateway SHALL 按请求到达顺序在成员间循环选择，并在同一 Virtual Model 实例内保持计数单调递增；不同 Provider 实例在轮询队列中按加入顺序排列。
+5. WHEN strategy 为 `WeightedRandom`，THE Gateway SHALL 按成员 weight 字段计算累计权重并按均匀随机抽样选择成员，所有成员的 weight 之和必须大于零，否则返回 400 错误码 `invalid_weights`。
+6. WHEN strategy 为 `Failover`，THE Gateway SHALL 按成员 priority 升序选择首个 available 成员；当首选成员在最近一次 Probe 中被标记为 unavailable，THE Gateway SHALL 跳过该成员选择次选。
+7. WHEN strategy 为 `LowestLatency`，THE Gateway SHALL 选择最近 N 次 Probe 中平均延迟最低且状态为 available 的成员，N 默认取 5，可由 Virtual Model 的 latencyWindow 字段覆盖。
+8. WHEN strategy 为 `Failover` 且所有成员均标记为 unavailable，THE Gateway SHALL 返回 502 错误体，错误码为 `all_upstreams_unavailable`。
+9. WHEN 管理员调用 `GET /admin/api/virtual-models/:id/availability`，THE Gateway SHALL 返回该 Virtual Model 所有成员的 availability 状态、最近延迟、最近一次 Probe 时间与连续失败/成功计数。
+10. WHEN 客户端请求中的 model 字段直接命中某个 UpstreamModel（未走 Virtual Model 包装），THE Gateway SHALL 直传该 UpstreamModel 并跳过 Virtual Model 路由逻辑，但 availability 与 Probe 仍生效。
+11. WHEN 管理员调用 `POST /admin/api/virtual-models/:id/dry-run`，THE Gateway SHALL 根据当前可用性与策略返回该 Virtual Model 下一次请求将选择的成员 id（不实际发起调用）。
 
 ### Requirement 5 — 鉴权与 Virtual Key
 
@@ -98,18 +102,23 @@
 4. WHEN Key 上配置了 rpm 或 tpm 限额且当前窗口内累计超过限额，THE Gateway SHALL 返回 429 错误并附带 `Retry-After` 头。
 5. WHEN Key 上配置了 allowedModels 白名单且请求的 model 不在白名单内，THE Gateway SHALL 返回 403 错误。
 
-### Requirement 6 — Probe、可用性与故障转移
+### Requirement 6 — 模型可用性、Probe 与故障转移
 
-**User Story:** 作为平台运维者，我希望 Gateway 自动持续探测上游模型可用性并在故障时自动跳过，这样线上请求不会被不可用模型拖慢。
+**User Story:** 作为平台运维者，我希望 Gateway 自动持续探测每个 Upstream Model 的可用性，在故障时自动跳过，并将模型可用性状态暴露给客户端与管理后台，这样线上业务不会被不可用模型拖慢，客户端 SDK 也能据此提示用户。
 
 #### Acceptance Criteria
 
-1. WHEN 管理员在配置中设置 `probeIntervalMinutes` 大于 0，THE Gateway SHALL 按该间隔对所有启用 Upstream Model 执行 Probe，并在数据层记录每次 Probe 的 latency、statusCode、success、errorMessage、probedAt。
-2. WHEN Probe 连续失败次数达到 `failureThreshold`（默认 3），THE Gateway SHALL 将该 Upstream Model 标记为 unavailable 并停止将其纳入路由选择。
-3. WHEN Probe 在 unavailable 状态下连续成功次数达到 `recoveryThreshold`（默认 2），THE Gateway SHALL 将该 Upstream Model 重新标记为 available 并恢复路由资格。
-4. WHEN 真实请求收到 Provider 返回的 5xx 或网络超时错误，THE Gateway SHALL 将该 Upstream Model 的连续失败计数加一并按 Requirement 6.2 的规则触发降级。
+1. WHEN 管理员在配置中设置 `probeIntervalMinutes` 大于 0，THE Gateway SHALL 按该间隔对所有启用的 `(providerId, providerModelId)` 组合执行 Probe，并在数据层记录每次 Probe 的 latency、statusCode、success、errorMessage、probedAt。
+2. WHEN Probe 连续失败次数达到 `failureThreshold`（默认 3），THE Gateway SHALL 将该 Upstream Model 标记为 `unavailable` 并停止将其纳入任何 Virtual Model 的路由选择。
+3. WHEN Probe 在 unavailable 状态下连续成功次数达到 `recoveryThreshold`（默认 2），THE Gateway SHALL 将该 Upstream Model 重新标记为 `available` 并恢复路由资格。
+4. WHEN 真实请求收到 Provider 返回的 5xx 或网络超时错误，THE Gateway SHALL 将该 Upstream Model 的连续失败计数加一并按 AC2 的规则触发降级。
 5. WHEN 真实请求收到 Provider 返回的 4xx 错误（除 408 与 429），THE Gateway SHALL 不修改 Upstream Model 的可用性状态，原样回传错误体给客户端。
 6. WHEN 客户端请求是流式且中途 Provider 连接断开，THE Gateway SHALL 在 SSE 流尾追加一条 Client Protocol 的 error 事件，type 字段为对应 Provider 错误类型，并在 `data: [DONE]` 之前发送。
+7. WHEN 客户端调用 `GET /v1/models`，THE Gateway SHALL 在返回的每个 model 对象的 `metadata.availability` 字段中暴露 `available` / `degraded` / `unavailable` 三态，`degraded` 表示最近 N 次 Probe 中成功率 < 80%；`unavailable` 表示已触发降级；`available` 表示正常。
+8. WHEN 客户端调用 `GET /v1/models`，THE Gateway SHALL 在每个 model 对象的 `metadata` 中暴露 `endpoints` 数组，每个元素为 `{ providerId, providerModelId, availability, latencyMsP50, latencyMsP95 }`，使调用方一眼看出该 model id 背后绑定了哪些服务商实例及其各自的可用性。
+9. WHEN Virtual Model 切换 provider 实例（RoundRobin/WeightedRandom/Failover/LowestLatency），THE Gateway SHALL 在响应头 `X-Gateway-Routed-Provider` 与 `X-Gateway-Routed-Model` 中返回实际命中的 `(providerId, providerModelId)`，便于客户端诊断路由结果。
+10. WHEN 管理员调用 `GET /admin/api/availability`，THE Gateway SHALL 返回所有 Upstream Model 的当前 availability、连续失败/成功计数、最近 10 次 Probe 历史与最近一次真实请求失败原因。
+11. WHEN Upstream Model 处于 `unavailable` 状态且 Probe 仍未恢复，THE Gateway SHALL 在 `GET /v1/models` 中将该 model id 标记为 `available=false` 并在 OpenAI Responses 协议的 `output` 中通过 `metadata.unavailable_since` 暴露降级开始时间。
 
 ### Requirement 7 — 用量统计与价格管理
 
@@ -145,7 +154,7 @@
 
 1. WHEN 用户执行 `npx ai-gateway`，THE Gateway SHALL 启动 HTTP 服务并监听 `PORT` 环境变量（默认 3000）上的全部端口。
 2. WHEN 用户执行 `npx ai-gateway --config <path>`，THE Gateway SHALL 读取该路径下的 JSON 配置文件并以文件配置覆盖默认配置。
-3. WHEN 用户执行 `npx ai-gateway --import <path>`，THE Gateway SHALL 从该 JSON 文件导入 Provider / Virtual Model / Key 配置而不启动服务。
+3. WHEN 用户执行 `npx ai-gateway --import <path>`，THE Gateway SHALL 从该 JSON 文件导入 Provider / Virtual Model / Key 配置而不启动服务；导入的 Virtual Model 支持 `members` 字段引用多个不同 Provider 的同一逻辑 model id，以满足"一个 model id 负载多个服务商"的部署形态。
 4. WHEN 用户向运行中进程发送 `SIGTERM`，THE Gateway SHALL 等待所有进行中流式请求结束（最长 30 秒）后安全关闭并释放监听端口。
 5. WHEN 进程启动时检测到数据目录中已存在旧 schema 的 SQLite 数据库，THE Gateway SHALL 执行 schema 迁移并在迁移失败时拒绝启动并打印明确错误信息。
 
