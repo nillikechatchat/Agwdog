@@ -21,6 +21,11 @@
 - **Token Usage**：请求消耗的输入、输出、缓存 Token 数，由 Gateway 从上游响应中提取或估算。
 - **Price Table**：以 USD / 1M tokens 为单位的输入/输出价格表，用于用量计费。
 - **Admin Token**：用于访问 Gateway 管理后台与 REST API 的管理员令牌。
+- **Exact Cache**：以请求指纹（model + messages + 关键参数的规范化哈希）为键的响应缓存，命中时零上游成本。
+- **Fallback Chain**：Virtual Model 上配置的降级链，当全部成员不可用时依次尝试更便宜/更保守的备选 Virtual Model。
+- **Budget**：Virtual Key 上的金额预算约束，含日预算、月预算与总额度，支持超额软告警与硬阻断两种模式。
+- **TTFT**：Time To First Token，流式请求从发出到收到首个内容帧的毫秒数。
+- **Retryable Error**：可安全重试的上游错误分类，包含 408、429、5xx 与网络层错误（连接重置、DNS 失败、TLS 握手超时）。
 
 ## Requirements
 
@@ -85,14 +90,16 @@
 5. WHEN strategy 为 `WeightedRandom`，THE Gateway SHALL 按成员 weight 字段计算累计权重并按均匀随机抽样选择成员，所有成员的 weight 之和必须大于零，否则返回 400 错误码 `invalid_weights`。
 6. WHEN strategy 为 `Failover`，THE Gateway SHALL 按成员 priority 升序选择首个 available 成员；当首选成员在最近一次 Probe 中被标记为 unavailable，THE Gateway SHALL 跳过该成员选择次选。
 7. WHEN strategy 为 `LowestLatency`，THE Gateway SHALL 选择最近 N 次 Probe 中平均延迟最低且状态为 available 的成员，N 默认取 5，可由 Virtual Model 的 latencyWindow 字段覆盖。
-8. WHEN strategy 为 `Failover` 且所有成员均标记为 unavailable，THE Gateway SHALL 返回 502 错误体，错误码为 `all_upstreams_unavailable`。
-9. WHEN 管理员调用 `GET /admin/api/virtual-models/:id/availability`，THE Gateway SHALL 返回该 Virtual Model 所有成员的 availability 状态、最近延迟、最近一次 Probe 时间与连续失败/成功计数。
-10. WHEN 客户端请求中的 model 字段直接命中某个 UpstreamModel（未走 Virtual Model 包装），THE Gateway SHALL 直传该 UpstreamModel 并跳过 Virtual Model 路由逻辑，但 availability 与 Probe 仍生效。
-11. WHEN 管理员调用 `POST /admin/api/virtual-models/:id/dry-run`，THE Gateway SHALL 根据当前可用性与策略返回该 Virtual Model 下一次请求将选择的成员 id（不实际发起调用）。
+8. WHEN strategy 为 `Failover` 且所有成员均标记为 unavailable，THE Gateway SHALL 依次尝试该 Virtual Model 的 fallbackChain 中配置的备选 Virtual Model；当 fallbackChain 为空或全部失败，THE Gateway SHALL 返回 502 错误体，错误码为 `all_upstreams_unavailable`。
+9. WHEN 管理员为 Virtual Model 配置 fallbackChain（如 `["gpt-4o", "gpt-4o-mini", "deepseek-chat"]`），THE Gateway SHALL 在主 Virtual Model 全部成员不可用时按链序尝试备选，并在响应头 `X-Gateway-Fallback-From` 中注明实际生效的前一级 model id。
+10. WHEN 管理员调用 `GET /admin/api/virtual-models/:id/availability`，THE Gateway SHALL 返回该 Virtual Model 所有成员的 availability 状态、最近延迟、最近一次 Probe 时间与连续失败/成功计数。
+11. WHEN 客户端请求中的 model 字段直接命中某个 UpstreamModel（未走 Virtual Model 包装），THE Gateway SHALL 直传该 UpstreamModel 并跳过 Virtual Model 路由逻辑，但 availability 与 Probe 仍生效。
+12. WHEN 管理员调用 `POST /admin/api/virtual-models/:id/dry-run`，THE Gateway SHALL 根据当前可用性与策略返回该 Virtual Model 下一次请求将选择的成员 id（不实际发起调用）。
+13. WHEN fallbackChain 触发时客户端请求为流式，THE Gateway SHALL 仅在未向客户端写出任何内容帧的前提下执行链式降级；已写出首帧后发生故障的请求按 Requirement 6 AC6 处理。
 
-### Requirement 5 — 鉴权与 Virtual Key
+### Requirement 5 — 鉴权、Virtual Key 与预算管理
 
-**User Story:** 作为平台管理员，我希望为团队成员颁发 Virtual Key 并能随时吊销，这样不同应用与不同成员的用量可独立计量与限额。
+**User Story:** 作为平台管理员，我希望为团队成员颁发 Virtual Key 并能随时吊销，同时为每个 Key 设置金额预算（日/月/总额），这样不同应用与不同成员的用量可独立计量、限额与止损。
 
 #### Acceptance Criteria
 
@@ -101,6 +108,11 @@
 3. WHEN 管理员调用 `DELETE /admin/keys/:id` 吊销 Key，THE Gateway SHALL 将该 Key 标记为 revoked，后续使用该 Key 的请求返回 401 错误。
 4. WHEN Key 上配置了 rpm 或 tpm 限额且当前窗口内累计超过限额，THE Gateway SHALL 返回 429 错误并附带 `Retry-After` 头。
 5. WHEN Key 上配置了 allowedModels 白名单且请求的 model 不在白名单内，THE Gateway SHALL 返回 403 错误。
+6. WHEN 管理员为 Key 配置 `budgetDailyUsd`、`budgetMonthlyUsd` 或 `budgetTotalUsd` 中任意一项，THE Gateway SHALL 在每次请求计费后累加该 Key 的对应预算计数器。
+7. WHEN Key 的任一预算计数器达到配置值的 80%，THE Gateway SHALL 生成一条 `budget_warning` 事件写入 events 表并可通过 `GET /admin/api/keys/:id/events` 查询；同一预算周期内同一阈值只告警一次。
+8. WHEN Key 的 `budgetMode` 为 `hard` 且任一预算计数器达到配置值，THE Gateway SHALL 对后续请求返回 402 错误，错误码 `budget_exceeded`，错误体包含 `exceededBudget`、`spentUsd`、`budgetUsd` 字段。
+9. WHEN Key 的 `budgetMode` 为 `soft` 且预算超额，THE Gateway SHALL 照常放行请求，仅持续记录 `budget_exceeded` 事件。
+10. WHEN 管理员调用 `POST /admin/keys/:id/budget/reset`，THE Gateway SHALL 清零指定周期的预算计数器并记录操作审计事件。
 
 ### Requirement 6 — 模型可用性、Probe 与故障转移
 
@@ -127,24 +139,31 @@
 #### Acceptance Criteria
 
 1. WHEN 任意请求成功完成（流式请求以 `[DONE]` 为完成标志），THE Gateway SHALL 将本次请求的 promptTokens、completionTokens、cachedTokens、totalTokens、costUSD、keyId、virtualModelId、upstreamProviderId、upstreamModelId、latencyMs、statusCode、probedAt 写入数据层 usage 表。
-2. WHEN 请求中 Provider 未在响应体内返回 usage 字段，THE Gateway SHALL 按本地估算规则（字符数 / 4 向下取整）补齐 promptTokens 与 completionTokens 并将 source 字段标记为 `estimated`。
-3. WHEN 管理员调用 `GET /admin/usage?groupBy=day&range=7d`，THE Gateway SHALL 返回按日期聚合的 promptTokens、completionTokens、costUSD、requestCount 列表。
-4. WHEN 管理员调用 `GET /admin/usage?groupBy=model&range=30d`，THE Gateway SHALL 返回按 upstreamModelId 聚合的 costUSD 与 token 列表，按 costUSD 降序排列。
-5. WHEN 管理员调用 `GET /admin/usage?groupBy=key&range=today`，THE Gateway SHALL 返回按 keyId 聚合的 costUSD、requestCount、rpm、tpm 列表。
-6. WHEN 管理员在 Provider 配置中设置了 inputPricePerMTokensUSD 与 outputPricePerMTokensUSD，THE Gateway SHALL 按 USD / 1M tokens 计价并将每条 usage 记录的 costUSD 字段写入。
-7. WHEN 管理员在 Provider 配置中设置了 cachedInputPricePerMTokensUSD，THE Gateway SHALL 将 cachedTokens 按该价格计入 costUSD。
+2. WHEN 请求为流式，THE Gateway SHALL 额外记录 ttftMs（发出上游请求到收到首个内容帧的毫秒数）与 tokensPerSecond（completionTokens / (latencyMs - ttftMs) * 1000），用于流式体验与吞吐质量分析。
+3. WHEN 请求命中 Exact Cache（见 Requirement 13），THE Gateway SHALL 将该请求的 cacheHit 字段记为 `exact`，costUSD 记为 0，并在 usage 表保留一条记录以反映零成本命中。
+4. WHEN 请求中 Provider 未在响应体内返回 usage 字段，THE Gateway SHALL 按本地估算规则（字符数 / 4 向下取整）补齐 promptTokens 与 completionTokens 并将 source 字段标记为 `estimated`。
+5. WHEN 管理员调用 `GET /admin/usage?groupBy=day&range=7d`，THE Gateway SHALL 返回按日期聚合的 promptTokens、completionTokens、costUSD、requestCount 列表。
+6. WHEN 管理员调用 `GET /admin/usage?groupBy=model&range=30d`，THE Gateway SHALL 返回按 upstreamModelId 聚合的 costUSD 与 token 列表，按 costUSD 降序排列。
+7. WHEN 管理员调用 `GET /admin/usage?groupBy=key&range=today`，THE Gateway SHALL 返回按 keyId 聚合的 costUSD、requestCount、rpm、tpm 列表。
+8. WHEN 管理员在 Provider 配置中设置了 inputPricePerMTokensUSD 与 outputPricePerMTokensUSD，THE Gateway SHALL 按 USD / 1M tokens 计价并将每条 usage 记录的 costUSD 字段写入。
+9. WHEN 管理员在 Provider 配置中设置了 cachedInputPricePerMTokensUSD，THE Gateway SHALL 将 cachedTokens 按该价格计入 costUSD。
 
 ### Requirement 8 — 管理面与可观测性
 
-**User Story:** 作为平台管理员，我希望通过 Web 管理后台完成所有配置，并通过管理 API 集成到自有运维系统。
+**User Story:** 作为平台管理员，我希望通过 Web 管理后台完成所有配置，通过 Prometheus 抓取网关指标，通过 OpenTelemetry 把调用链路接入现有可观测体系，并能审计完整请求响应。
 
 #### Acceptance Criteria
 
 1. WHEN 管理员启动 Gateway 后访问 `http://{host}:{port}/admin`，THE Gateway SHALL 返回 Web 管理后台的 SPA 入口。
 2. WHEN 管理员使用正确的 Admin Token 访问 `GET /admin/api/*`，THE Gateway SHALL 通过鉴权并返回 JSON 响应；当 Token 缺失或错误，THE Gateway SHALL 返回 401。
 3. WHEN Gateway 启动成功，THE Gateway SHALL 输出一行结构化启动日志，包含 version、listenHost、listenPort、adminEnabled、dataDir、uptimeMs。
-4. WHEN 任意请求完成，THE Gateway SHALL 追加一条结构化访问日志，包含 requestId、keyId、virtualModelId、upstreamModelId、latencyMs、statusCode、promptTokens、completionTokens。
+4. WHEN 任意请求完成，THE Gateway SHALL 追加一条结构化访问日志，包含 requestId、keyId、virtualModelId、upstreamModelId、latencyMs、ttftMs、statusCode、promptTokens、completionTokens、cacheHit。
 5. WHEN 管理后台展示用量图表，THE Gateway SHALL 提供 `GET /admin/api/usage/timeseries?bucket=hour&range=24h` 接口，返回以 bucketStart 为键的聚合序列。
+6. WHEN 抓取器访问 `GET /metrics`（受与 Admin Token 相同的鉴权保护），THE Gateway SHALL 以 Prometheus 文本格式暴露以下指标族：`gateway_requests_total{key,model,provider,status}`、`gateway_tokens_total{key,model,type}`、`gateway_cost_usd_total{key,model}`、`gateway_request_duration_ms_bucket`、`gateway_ttft_ms_bucket`、`gateway_cache_hits_total{type}`、`gateway_upstream_available{provider,model}`、`gateway_budget_usage_ratio{key}`。
+7. WHEN 管理员配置 `otelExporterOtlpEndpoint`，THE Gateway SHALL 以 OTLP/gRPC 按 OpenTelemetry GenAI 语义约定（`gen_ai.*` 属性族）导出每个请求的 Span，属性包含 gen_ai.system、gen_ai.request.model、gen_ai.response.model、gen_ai.usage.input_tokens、gen_ai.usage.output_tokens、gen_ai.operation.name，并在流式请求中记录 TTFT 与总时延两个时间点事件。
+8. WHEN 管理员为 Key 开启 `logRequests`（默认关闭），THE Gateway SHALL 将该 Key 请求的请求体与响应体（脱敏后）写入 request_logs 表，采样率由 Key 的 `logSampleRate`（0-1，默认 1）控制；流式响应记录聚合后的完整文本。
+9. WHEN 请求响应日志开启且请求中包含 Authorization、Cookie、X-Api-Key 头或 API Key 形态的字符串，THE Gateway SHALL 在落库前按正则模式（sk-、Bearer、AKIA、ghp_ 等前缀）替换为 `***`。
+10. WHEN 管理员调用 `GET /admin/api/logs?requestId=...`，THE Gateway SHALL 返回该请求的完整审计记录，包含请求体、响应体、路由决策（命中的 provider/model/strategy）、Probe 快照与耗时分解（connect/ttfb/ttft/total）。
 
 ### Requirement 9 — 部署与生命周期
 
@@ -166,9 +185,12 @@
 
 1. WHEN 上游 API Key 写入数据层时，THE Gateway SHALL 使用 AES-256-GCM 加密存储，密钥来源于 `GATEWAY_MASTER_KEY` 环境变量或首次启动时随机生成的本地密钥。
 2. WHEN 任何错误响应体构造时，THE Gateway SHALL 仅暴露 Provider 返回的错误 message 与 code 字段，不包含 Authorization、X-Api-Key、Bearer 等鉴权字段。
-3. WHEN Gateway 发起上游请求，THE Gateway SHALL 设置 connectTimeoutMs（默认 5000）、requestTimeoutMs（默认 60000）、maxRetries（默认 1，由 Retry-After 触发）三项硬性约束。
-4. WHEN 客户端请求中包含敏感字段（Authorization、Cookie、X-Api-Key），THE Gateway SHALL 在日志输出前将其替换为 `***`。
-5. WHEN 管理员启用 `adminEnabled=false`，THE Gateway SHALL 完全禁用 Web 管理后台与管理 REST API，但不影响 `POST /v1/chat/completions` 等 Client Protocol 出口。
+3. WHEN Gateway 发起上游请求，THE Gateway SHALL 设置 connectTimeoutMs（默认 5000）、requestTimeoutMs（默认 60000）两项硬性约束。
+4. WHEN 上游返回 Retryable Error（408、429、5xx 或网络层错误），THE Gateway SHALL 按指数退避策略重试：第 n 次重试延迟 `baseMs * 2^(n-1) + jitter`（baseMs 默认 500，jitter 为 0-500 均匀随机），最大重试次数由 Virtual Model 的 `maxRetries`（默认 2）控制。
+5. WHEN 上游 429 响应携带 `Retry-After` 头，THE Gateway SHALL 以该头的秒数覆盖指数退避计算值。
+6. WHEN 单位时间内的重试请求数占比超过 `retryBudgetRatio`（默认 0.2，即重试占总请求 20%），THE Gateway SHALL 暂停重试并直接透传错误，防止重试风暴放大上游压力。
+7. WHEN 客户端请求中包含敏感字段（Authorization、Cookie、X-Api-Key），THE Gateway SHALL 在日志输出前将其替换为 `***`。
+8. WHEN 管理员启用 `adminEnabled=false`，THE Gateway SHALL 完全禁用 Web 管理后台与管理 REST API，但不影响 `POST /v1/chat/completions` 等 Client Protocol 出口。
 
 ### Requirement 11 — Claude Code / Cursor / Cline / Codex CLI 兼容矩阵
 
@@ -199,3 +221,30 @@
 5. WHEN 客户端在 Responses 请求中启用 `code_interpreter` 或 `file_search` 内置工具，THE Gateway SHALL 优先选择支持这些工具的 Provider；不支持时返回 400，错误码 `builtin_tool_not_supported`。
 6. WHEN Responses 客户端请求流式响应，THE Gateway SHALL 按 Responses event 顺序转发：`response.created` → `response.in_progress` → `response.output_text.delta` → `response.output_item.added` → `response.output_item.done` → `response.completed`，保持 event 类型与 `response` 对象引用一致。
 7. WHEN Gateway 完成一个 Responses 请求，THE Gateway SHALL 将响应主体（含 `output` 数组与 `id`）持久化到 `response_cache` 表，TTL 默认 24 小时，可由 Key 的 `responseCacheTtlSeconds` 字段覆盖。
+
+### Requirement 13 — 响应缓存（Exact Cache）
+
+**User Story:** 作为成本敏感的应用负责人，我希望完全相同的请求（同 model、同 messages、同关键参数）在短时间内重复到达时直接返回缓存响应，这样重复调用零上游成本、近零延迟。
+
+#### Acceptance Criteria
+
+1. WHEN 管理员在全局或 Key 级开启 `cacheEnabled`（默认开启）且请求为非流式，THE Gateway SHALL 以请求指纹（model + 规范化 messages + temperature + top_p + max_tokens + tools + tool_choice + response_format 的稳定序列化 SHA-256）为键查询缓存，命中且未过期时直接返回缓存响应并附加 `X-Gateway-Cache: hit` 头。
+2. WHEN 缓存未命中且请求成功完成，THE Gateway SHALL 将响应写入缓存，TTL 由 `cacheTtlSeconds`（默认 300）控制，并附加 `X-Gateway-Cache: miss` 头。
+3. WHEN 客户端请求中包含 `stream: true`，THE Gateway SHALL 跳过缓存写入与命中路径（流式响应可变性强，缓存语义复杂），头标记为 `X-Gateway-Cache: bypass`。
+4. WHEN 客户端请求中包含随机性特征字段（temperature > 0 的采样场景除外）、`seed` 字段存在时，THE Gateway SHALL 将 seed 纳入指纹参与哈希。
+5. WHEN 缓存命中，THE Gateway SHALL 照常记录一条 usage（costUSD=0、cacheHit='exact'），保证用量表完整反映所有请求。
+6. WHEN 缓存条目数达到 `cacheMaxEntries`（默认 1000），THE Gateway SHALL 按 LRU 淘汰最久未命中条目。
+7. WHEN 管理员调用 `DELETE /admin/api/cache`，THE Gateway SHALL 清空全部 Exact Cache 条目并返回清空数量。
+8. WHEN 缓存命中且原始响应包含工具调用，THE Gateway SHALL 仅在请求指纹包含 tools 与 tool_choice 的完整序列化时允许命中，避免工具定义差异导致的错误复用。
+### Requirement 14 — Roadmap（二期，本期不实现）
+
+**User Story:** 作为产品负责人，我希望明确二期演进方向与全球标杆（Portkey、LiteLLM、Cloudflare、Vercel、Kong AI Gateway）的对齐路径，这样一期范围可控、二期有清晰路线。
+
+#### Scope Boundaries（本期明确不做）
+
+1. **Semantic Cache（语义缓存）**：基于 embedding 相似度（如 cosine > 0.95）命中缓存。二期实现，接口位已在一期 Exact Cache 的 `cacheHit` 枚举（exact/semantic）中预留。
+2. **Guardrails 插件框架**：请求/响应内容安全过滤、PII 脱敏注入、主题拦截。二期以 middleware 插件形式实现。
+3. **MCP（Model Context Protocol）支持**：Agent 工具访问控制层。二期评估。
+4. **Prompt 管理与版本化**：Prompt 模板库、版本对比、灰度。二期评估。
+5. **多实例集群模式**：一期为单进程 SQLite；二期评估 SQLite WAL 多读 + 配置导出同步或 Postgres 后端。
+6. **A/B 实验语义**：一期 WeightedRandom 已具备流量切分能力；二期在其上叠加固定分桶（cookie/header sticky）与统计面板。

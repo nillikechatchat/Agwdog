@@ -88,24 +88,31 @@ sequenceDiagram
 
     C->>G: POST /v1/chat/completions (OpenAI protocol)
     G->>G: Auth (Virtual Key)
-    G->>G: Resolve model → UpstreamModel via Router
-    G->>G: Adapter: Client request → IR (stage 1: Provider-agnostic)
-    G->>G: Serializer: IR → Provider request (stage 2: outbound encode)
-    G->>P: HTTPS (Provider native protocol, with timeout/retry)
-    alt stream = true
-        P-->>G: SSE frames
-        loop per frame
-            G->>G: Adapter: Provider SSE → IR.delta
-            G->>G: Serializer: IR.delta → Client SSE
-            G-->>C: SSE frame
+    G->>G: Budget check (hard mode?)
+    G->>G: Exact Cache lookup (fingerprint)
+    alt cache hit
+        G-->>C: cached response + X-Gateway-Cache: hit
+    else cache miss / bypass
+        G->>G: Resolve model → UpstreamModel via Router
+        G->>G: Adapter: Client request → IR (stage 1: Provider-agnostic)
+        G->>G: Serializer: IR → Provider request (stage 2: outbound encode)
+        G->>P: HTTPS (Provider native protocol, timeout/retry with exp backoff)
+        alt stream = true
+            P-->>G: SSE frames
+            loop per frame
+                G->>G: Adapter: Provider SSE → IR.delta
+                G->>G: Serializer: IR.delta → Client SSE
+                G-->>C: SSE frame
+            end
+        else stream = false
+            P-->>G: JSON
+            G->>G: Adapter: Provider JSON → IR.response
+            G->>G: Serializer: IR.response → Client JSON
+            G-->>C: JSON
         end
-    else stream = false
-        P-->>G: JSON
-        G->>G: Adapter: Provider JSON → IR.response
-        G->>G: Serializer: IR.response → Client JSON
-        G-->>C: JSON
     end
-    G->>G: Record usage (tokens, cost, latency)
+    G->>G: Record usage (tokens, cost, ttft, cacheHit)
+    G->>G: Budget counters += costUSD
     G-->>C: 200 / stream done
 ```
 
@@ -148,6 +155,7 @@ sequenceDiagram
   - `GET /v1beta/models` — Gemini 模型列表
   - `GET /admin` — Web 后台入口（返回单文件 HTML）
   - `GET /admin/api/*` — 管理 REST API（受 Admin Token 保护）
+  - `GET /metrics` — Prometheus 指标（受 Admin Token 保护）
   - `GET /healthz` — 存活探针
 - 流式响应通过 `res.write` + `Content-Type: text/event-stream` 实现。Responses 流式 event 命名空间为 `response.*`（如 `response.created`、`response.output_text.delta`），与 OpenAI 官方规范一致。
 
@@ -267,9 +275,47 @@ type IROutputItem = IRTextOutputItem | IRFunctionCallItem | IRFunctionCallOutput
 ### 6. Usage Recorder（`src/usage/recorder.ts`）
 
 - 在响应完成或 SSE `[DONE]` 时记录一行。
-- 字段：requestId、keyId、virtualModelId、upstreamProviderId、upstreamModelId、promptTokens、completionTokens、cachedTokens、totalTokens、costUSD、source（reported/estimated）、latencyMs、statusCode、createdAt。
+- 字段：requestId、keyId、virtualModelId、upstreamProviderId、upstreamModelId、promptTokens、completionTokens、cachedTokens、totalTokens、costUSD、source（reported/estimated）、cacheHit（none/exact）、ttftMs、tokensPerSecond、latencyMs、statusCode、createdAt。
 - costUSD = (promptTokens - cachedTokens) * inputPrice / 1e6 + cachedTokens * cachedInputPrice / 1e6 + completionTokens * outputPrice / 1e6。
 - 估算规则：当上游未返回 usage 时按字符数 / 4 向下取整，source = estimated。
+- 流式请求在首个内容帧到达时打点 ttftMs，在流结束时计算 tokensPerSecond = completionTokens / (latencyMs - ttftMs) * 1000。
+
+### 6a. Budget Tracker（`src/budget/tracker.ts`）
+
+- 内存计数器 + SQLite 持久化：`budgetCounters: Map<keyId, { day: { dateKey, spentUsd }, month: { monthKey, spentUsd }, total: number }>`。
+- 每次请求计费后累加，达到 80% 阈值时写 `events` 表（type=budget_warning，同一周期同一阈值去重）。
+- `budgetMode = hard` 时超额返回 402 `budget_exceeded`（错误体含 exceededBudget / spentUsd / budgetUsd）；`soft` 仅记录事件。
+- 日/月周期按 UTC 日界与自然月切换，切换时自动清零并归档。
+
+### 6b. Cache Manager（`src/cache/manager.ts`）
+
+- Exact Cache 实现：内存 LRU（`lru-cache` 模式自实现，容量 `cacheMaxEntries` 默认 1000）+ 可选 SQLite 持久层（进程重启后热身）。
+- 指纹算法：对 `{ model, messages(规范化排序), temperature, top_p, max_tokens, tools, tool_choice, response_format, seed? }` 做 JSON 稳定序列化（键排序）后 SHA-256。
+- 命中路径在 Auth 之后、Router 之前执行，命中时直接走 Client Serializer 返回，附加 `X-Gateway-Cache: hit`。
+- 流式请求（stream=true）直接 bypass；tools/tool_choice 完整参与指纹，防止工具差异误命中。
+- `cacheHit` 枚举预留 `semantic` 值（二期语义缓存接口位）。
+- 管理 API：`DELETE /admin/api/cache` 清空、`GET /admin/api/cache/stats` 返回命中率/条目数/TTL 分布。
+
+### 6c. Retry Policy（`src/upstream/retry.ts`）
+
+- Retryable Error 分类：HTTP 408 / 429 / 5xx + 网络层错误（ECONNRESET、ETIMEDOUT、DNS、TLS）。
+- 指数退避：`delay(n) = baseMs * 2^(n-1) + random(0, jitterMs)`，baseMs=500、jitterMs=500，maxRetries 由 Virtual Model 配置（默认 2）。
+- 上游 429 携带 `Retry-After` 时以 `max(retryAfter*1000, delay(n))` 覆盖。
+- 重试预算：滑动 60 秒窗口内 `retries / totalRequests > retryBudgetRatio(0.2)` 时熔断重试、直接透传错误，窗口恢复后自动解除。
+
+### 6d. Metrics & OTel Exporter（`src/observability/`）
+
+- `metrics.ts`：进程内聚合器，输出 Prometheus 文本格式到 `GET /metrics`：
+  - `gateway_requests_total{key,model,provider,status}` Counter
+  - `gateway_tokens_total{key,model,type=prompt|completion|cached}` Counter
+  - `gateway_cost_usd_total{key,model}` Counter
+  - `gateway_request_duration_ms_bucket` Histogram（le: 50/100/250/500/1000/2500/5000/10000）
+  - `gateway_ttft_ms_bucket` Histogram（le: 100/250/500/1000/2000/5000）
+  - `gateway_cache_hits_total{type}` Counter
+  - `gateway_upstream_available{provider,model}` Gauge（1/0）
+  - `gateway_budget_usage_ratio{key}` Gauge（0-1+）
+- `otel.ts`：可选 OTLP/gRPC Span 导出（配置 `otelExporterOtlpEndpoint` 时启用），遵循 GenAI 语义约定属性族 `gen_ai.*`（gen_ai.system、gen_ai.request.model、gen_ai.response.model、gen_ai.usage.input_tokens、gen_ai.usage.output_tokens、gen_ai.operation.name），流式请求记录 `ttft` 与 `stream_completed` 两个 span 事件。
+- `request-logs.ts`：Key 级 `logRequests` 开启时按采样率写入 `request_logs` 表；脱敏正则覆盖 `sk-\w+`、`Bearer\s+\S+`、`AKIA[0-9A-Z]{16}`、`ghp_\w+`、`-----BEGIN.*KEY-----` 等模式。
 
 ### 7. Admin REST API（`src/admin/api.ts`）
 
@@ -291,6 +337,13 @@ type IROutputItem = IRTextOutputItem | IRFunctionCallItem | IRFunctionCallOutput
 | GET | `/admin/api/keys` | 列出 Key（不返回明文） |
 | POST | `/admin/api/keys` | 创建 Key（返回一次明文） |
 | DELETE | `/admin/api/keys/:id` | 吊销 Key |
+| GET | `/admin/api/keys/:id/budget` | Key 预算计数器与告警状态 |
+| POST | `/admin/api/keys/:id/budget/reset` | 重置指定周期预算计数器 |
+| GET | `/admin/api/keys/:id/events` | Key 相关事件流（预算告警、降级等） |
+| DELETE | `/admin/api/cache` | 清空 Exact Cache |
+| GET | `/admin/api/cache/stats` | 缓存命中率、条目数、TTL 分布 |
+| GET | `/admin/api/logs?requestId=...` | 请求响应审计（含路由决策与耗时分解） |
+| GET | `/metrics` | Prometheus 文本格式指标（受 Admin 鉴权保护） |
 | GET | `/admin/api/usage?groupBy=...&range=...` | 用量聚合 |
 | GET | `/admin/api/usage/timeseries?bucket=hour&range=24h` | 时序聚合 |
 | GET | `/admin/api/stats/totals` | 总量统计（请求数、Token、费用、活跃 Key、平均延迟） |
@@ -414,6 +467,8 @@ CREATE TABLE virtual_models (
   latency_window INTEGER DEFAULT 5,
   failure_threshold INTEGER DEFAULT 3,
   recovery_threshold INTEGER DEFAULT 2,
+  max_retries INTEGER NOT NULL DEFAULT 2,
+  fallback_chain_json TEXT,
   created_at INTEGER NOT NULL
 );
 
@@ -437,9 +492,65 @@ CREATE TABLE keys (
   tpm_limit INTEGER,
   allowed_models_json TEXT,
   response_cache_ttl_seconds INTEGER NOT NULL DEFAULT 86400,
+  budget_mode TEXT NOT NULL DEFAULT 'soft' CHECK (budget_mode IN ('soft','hard')),
+  budget_daily_usd REAL,
+  budget_monthly_usd REAL,
+  budget_total_usd REAL,
+  cache_enabled INTEGER NOT NULL DEFAULT 1,
+  log_requests INTEGER NOT NULL DEFAULT 0,
+  log_sample_rate REAL NOT NULL DEFAULT 1.0,
   created_at INTEGER NOT NULL,
   revoked_at INTEGER
 );
+
+CREATE TABLE budget_counters (
+  key_id TEXT NOT NULL REFERENCES keys(id) ON DELETE CASCADE,
+  period_type TEXT NOT NULL CHECK (period_type IN ('day','month','total')),
+  period_key TEXT NOT NULL,
+  spent_usd REAL NOT NULL DEFAULT 0,
+  warned_at_80 INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (key_id, period_type, period_key)
+);
+
+CREATE TABLE events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key_id TEXT,
+  type TEXT NOT NULL CHECK (type IN ('budget_warning','budget_exceeded','budget_reset','upstream_degraded','upstream_recovered','config_changed')),
+  payload_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_events_key_created ON events(key_id, created_at DESC);
+
+CREATE TABLE request_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  request_id TEXT NOT NULL,
+  key_id TEXT,
+  client_protocol TEXT NOT NULL,
+  virtual_model_id TEXT,
+  upstream_provider_id TEXT,
+  upstream_model_id TEXT,
+  request_body_redacted TEXT NOT NULL,
+  response_body_redacted TEXT,
+  routing_decision_json TEXT,
+  timing_json TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_request_logs_request_id ON request_logs(request_id);
+CREATE INDEX idx_request_logs_created ON request_logs(created_at DESC);
+
+CREATE TABLE cache_entries (
+  fingerprint TEXT PRIMARY KEY,
+  key_id TEXT,
+  client_protocol TEXT NOT NULL,
+  model TEXT NOT NULL,
+  response_json TEXT NOT NULL,
+  hit_count INTEGER NOT NULL DEFAULT 0,
+  last_hit_at INTEGER,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_cache_entries_expires ON cache_entries(expires_at);
 
 CREATE TABLE probe_results (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -466,6 +577,9 @@ CREATE TABLE usage_records (
   total_tokens INTEGER NOT NULL DEFAULT 0,
   cost_usd REAL NOT NULL DEFAULT 0,
   source TEXT NOT NULL CHECK (source IN ('reported','estimated')),
+  cache_hit TEXT NOT NULL DEFAULT 'none' CHECK (cache_hit IN ('none','exact','semantic')),
+  ttft_ms INTEGER,
+  tokens_per_second REAL,
   latency_ms INTEGER NOT NULL,
   status_code INTEGER NOT NULL,
   error_code TEXT,
@@ -514,6 +628,11 @@ CREATE TABLE schema_version (
   "probeIntervalMinutes": 15,
   "failureThreshold": 3,
   "recoveryThreshold": 2,
+  "retryBudgetRatio": 0.2,
+  "cacheEnabled": true,
+  "cacheTtlSeconds": 300,
+  "cacheMaxEntries": 1000,
+  "otelExporterOtlpEndpoint": "",
   "providers": [
     {
       "name": "openai-official",
@@ -597,6 +716,10 @@ CREATE TABLE schema_version (
 12. **多服务商路由不变量**：同一 Virtual Model 包含来自不同 Provider 协议的成员时，Router SHALL 不感知协议差异；所有成员选择都通过 IR 中介后再发往目标 Provider Adapter。
 13. **可用性不变量（写扩散）**：`availabilityCache` 状态变更 SHALL 在 100ms 内反映到 Router 与 `GET /v1/models` 的响应中，不允许出现"上游已被降级但 Router 仍选中"的窗口。
 14. **Dry-run 等价性**：`POST /virtual-models/:id/dry-run` 返回的成员 SHALL 与同条件下真实请求命中的成员完全一致（同 race condition 忽略不计）。
+15. **缓存指纹抗碰撞**：两个请求若在 model、messages、temperature、top_p、max_tokens、tools、tool_choice、response_format、seed 任一字段上语义不同，THE Gateway SHALL 生成不同的指纹；指纹相同的两个请求 SHALL 获得字节级一致的缓存响应。
+16. **预算守恒**：任一时刻 `budget_counters.spent_usd` 之和 SHALL 等于对应周期内所有 usage_records.costUSD 的累加值（含 cache 命中的 0 费记录），误差 ≤ 1e-6 USD。
+17. **重试风暴约束**：滑动 60 秒窗口内重试请求占比 SHALL 不超过 `retryBudgetRatio`（默认 0.2）；超限时新请求直接透传错误而不再发起重试。
+18. **指标一致**：`gateway_requests_total` 与 `gateway_cost_usd_total` 在同一时间窗内的增量 SHALL 与 usage_records 表对应条件下的 COUNT/SUM 一致（误差 ≤ 1 笔进行中的请求）。
 
 ## Error Handling
 
@@ -606,6 +729,7 @@ CREATE TABLE schema_version (
 |---|---|---|---|
 | 鉴权失败 | 401 | `invalid_key` / `missing_authorization` | 原样返回 |
 | Key 限额超限 | 429 | `rate_limit_exceeded` / `token_quota_exceeded` | 返回 Retry-After |
+| 预算超额（hard 模式） | 402 | `budget_exceeded` | 错误体含 exceededBudget / spentUsd / budgetUsd |
 | 模型不存在 / 不允许 | 404 / 403 | `model_not_found` / `model_not_allowed` | 原样返回 |
 | 协议转换不支持 | 400 | `unsupported_capability` | 返回详细解释（如 Provider 不支持 tools、流式与 response_format 互斥等） |
 | Virtual Model 权重非法 | 400 | `invalid_weights` | 当 WeightedRandom 策略下所有成员 weight 之和为 0 时返回 |
@@ -652,6 +776,11 @@ CREATE TABLE schema_version (
   - dry-run 与实际命中结果一致。
 - 可用性状态机：Probe 连续失败 3 次 → unavailable、连续成功 2 次 → available；degraded 状态由成功率 < 80% 触发；状态变更后 Router 与 `/v1/models` 同步更新。
 - Probe Worker：连续失败达到 failureThreshold 触发降级，连续成功达到 recoveryThreshold 恢复。
+- Exact Cache：指纹抗碰撞（改任一关键字段必须 miss）、流式 bypass、LRU 淘汰、TTL 过期、工具差异不误命中、缓存命中仍写 usage（costUSD=0）。
+- Budget Tracker：soft 模式超额仅记事件；hard 模式超额返回 402 且错误体字段齐全；80% 告警同一周期去重；日/月界切换自动清零；budget_counters 与 usage_records 求和对账。
+- Retry Policy：408/429/5xx/网络错误触发退避；4xx（非 408/429）不重试；Retry-After 覆盖退避值；重试占比超 retryBudgetRatio 时熔断重试。
+- Metrics：`/metrics` 输出包含全部 8 个指标族；histogram bucket 边界正确；`gateway_requests_total` 增量与 usage 表写入一致。
+- 请求日志脱敏：sk-/Bearer/AKIA/ghp_/PEM 模式替换为 `***`；采样率 0 时不落库。
 - Usage Recorder：reported 与 estimated 两条路径、cost 计算含 cachedTokens。
 - Key 鉴权：明文 vs hash、revoked、限额、白名单。
 
@@ -701,3 +830,9 @@ CREATE TABLE schema_version (
 [^9]: OpenAI Responses API 规范 — https://platform.openai.com/docs/api-reference/responses
 [^10]: OpenAI Responses 流式 event 规范 — https://platform.openai.com/docs/guides/streaming-responses
 [^11]: OpenAI Agent SDK 与 Codex CLI 文档 — https://platform.openai.com/docs/guides/agents
+[^12]: OpenTelemetry GenAI Semantic Conventions（gen_ai.* 属性族）— https://opentelemetry.io/docs/specs/semconv/gen-ai/
+[^13]: Envoy AI Gateway 可观测性设计（TTFT/inter-token latency/OTLP push）— https://aigateway.envoyproxy.io/
+[^14]: Portkey AI Gateway（语义缓存与预算实践参考）— https://github.com/Portkey-AI/gateway
+[^15]: LiteLLM Proxy（预算/虚拟 Key/重试工程参考）— https://docs.litellm.ai/docs/proxy/quick_start
+[^16]: Kong AI Gateway（插件化 AI 流量治理参考）— https://konghq.com/products/kong-ai-gateway
+[^17]: 企业级 LLM Gateway 六大核心能力对比（2026）— https://developer.volcengine.com/articles/7670117360598974515
