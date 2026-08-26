@@ -13,7 +13,8 @@
     "web",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "examples"
   ],
   "engines": {
     "node": ">=20"
