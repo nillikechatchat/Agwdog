@@ -216,4 +216,122 @@ describe('admin api', () => {
     expect(html).toContain('AI Gateway');
     expect(html).toContain('Dashboard');
   });
+
+  describe('PATCH /admin/api/providers/:id', () => {
+    function createProvider(): string {
+      (repos as any).providers.insert({
+        id: 'prov-1',
+        name: 'openai',
+        protocol: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKeyCiphertext: 'ct',
+        apiKeyIv: 'iv',
+        apiKeyTag: 'tag',
+        inputPricePerMTokensUsd: 1.5,
+      });
+      return 'prov-1';
+    }
+
+    it('updates name and baseUrl', async () => {
+      createProvider();
+      const { req, res, capture } = makeReqRes('/admin/api/providers/prov-1', 'PATCH', {
+        name: 'renamed',
+        baseUrl: 'https://new.example.com/v1',
+      });
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(200);
+      expect(resp(capture)['updated']).toBe('prov-1');
+      const row = (repos as any).providers.getById('prov-1');
+      expect(row.name).toBe('renamed');
+      expect(row.base_url).toBe('https://new.example.com/v1');
+    });
+
+    it('rejects empty name with 400', async () => {
+      createProvider();
+      const { req, res, capture } = makeReqRes('/admin/api/providers/prov-1', 'PATCH', { name: '' });
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(400);
+      expect(resp(capture)['error']).toContain('name');
+    });
+
+    it('rejects invalid protocol with 400', async () => {
+      createProvider();
+      const { req, res, capture } = makeReqRes('/admin/api/providers/prov-1', 'PATCH', { protocol: 'Nope' });
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(400);
+      expect(resp(capture)['error']).toContain('protocol');
+    });
+
+    it('preserves existing API key fields when apiKey not provided', async () => {
+      createProvider();
+      const { req, res } = makeReqRes('/admin/api/providers/prov-1', 'PATCH', { name: 'x' });
+      await handleAdminRequest(req, res, deps);
+      const row = (repos as any).providers.getById('prov-1');
+      expect(row.api_key_ciphertext).toBe('ct');
+      expect(row.api_key_iv).toBe('iv');
+      expect(row.api_key_tag).toBe('tag');
+    });
+
+    it('encrypts new API key when masterKey configured', async () => {
+      createProvider();
+      const key = Buffer.alloc(32, 7);
+      const secured: AdminApiDeps = { ...deps, masterKey: key };
+      const { req, res, capture } = makeReqRes('/admin/api/providers/prov-1', 'PATCH', { apiKey: 'sk-new-secret' });
+      await handleAdminRequest(req, res, secured);
+      expect(res.statusCode).toBe(200);
+      const row = (repos as any).providers.getById('prov-1');
+      expect(row.api_key_ciphertext).not.toBe('ct');
+      expect(row.api_key_ciphertext.length).toBeGreaterThan(0);
+
+      // Round-trip decrypt to verify the value.
+      const { decrypt } = await import('../../../src/crypto/aes.js');
+      expect(decrypt({ ciphertext: row.api_key_ciphertext, iv: row.api_key_iv, tag: row.api_key_tag }, key)).toBe('sk-new-secret');
+    });
+
+    it('returns error when masterKey missing but apiKey requested', async () => {
+      createProvider();
+      const { req, res, capture } = makeReqRes('/admin/api/providers/prov-1', 'PATCH', { apiKey: 'sk-new-secret' });
+      await handleAdminRequest(req, res, deps);
+      // No other updatable field in body -> nothing applied
+      expect(res.statusCode).toBe(400);
+      expect(resp(capture)['error']).toContain('master key');
+      const row = (repos as any).providers.getById('prov-1');
+      expect(row.api_key_ciphertext).toBe('ct');
+    });
+
+    it('treats numeric zero price as valid value, not null', async () => {
+      createProvider();
+      const { req, res } = makeReqRes('/admin/api/providers/prov-1', 'PATCH', { inputPrice: 0, outputPrice: 0 });
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(200);
+      const row = (repos as any).providers.getById('prov-1');
+      expect(row.input_price_per_mtokens_usd).toBe(0);
+      expect(row.output_price_per_mtokens_usd).toBe(0);
+    });
+
+    it('clears price when empty string sent', async () => {
+      createProvider();
+      const { req, res } = makeReqRes('/admin/api/providers/prov-1', 'PATCH', { inputPrice: '' });
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(200);
+      const row = (repos as any).providers.getById('prov-1');
+      expect(row.input_price_per_mtokens_usd).toBeNull();
+    });
+
+    it('returns 400 for non-existent provider', async () => {
+      const { req, res, capture } = makeReqRes('/admin/api/providers/nope', 'PATCH', { name: 'x' });
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(400);
+      expect(resp(capture)['error']).toBe('provider not found');
+    });
+
+    it('returns list including price fields', async () => {
+      createProvider();
+      const { req, res, capture } = makeReqRes('/admin/api/providers', 'GET');
+      await handleAdminRequest(req, res, deps);
+      const providers = resp(capture)['providers'] as Array<Record<string, unknown>>;
+      expect(providers[0]!['inputPrice']).toBe(1.5);
+      expect(providers[0]!['outputPrice']).toBeNull();
+    });
+  });
 });

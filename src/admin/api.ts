@@ -141,6 +141,9 @@ function handleListProviders(ctx: AdminContext) {
       protocol: p.protocol,
       baseUrl: p.base_url,
       enabled: p.enabled === 1,
+      inputPrice: p.input_price_per_mtokens_usd,
+      outputPrice: p.output_price_per_mtokens_usd,
+      cachedInputPrice: p.cached_input_price_per_mtokens_usd,
       createdAt: p.created_at,
       models: models.map((m) => ({
         id: m.id,
@@ -187,9 +190,9 @@ function handleCreateProvider(ctx: AdminContext) {
     apiKeyCiphertext,
     apiKeyIv,
     apiKeyTag,
-    inputPricePerMTokensUsd: body['inputPrice'] ? Number(body['inputPrice']) : null,
-    outputPricePerMTokensUsd: body['outputPrice'] ? Number(body['outputPrice']) : null,
-    cachedInputPricePerMTokensUsd: body['cachedInputPrice'] ? Number(body['cachedInputPrice']) : null,
+    inputPricePerMTokensUsd: parsePrice(body['inputPrice']),
+    outputPricePerMTokensUsd: parsePrice(body['outputPrice']),
+    cachedInputPricePerMTokensUsd: parsePrice(body['cachedInputPrice']),
     enabled: body['enabled'] !== false,
     extra: body['extra'] ? (body['extra'] as Record<string, unknown>) : null,
   });
@@ -202,6 +205,14 @@ function handleDeleteProvider(ctx: AdminContext) {
   return { deleted: id };
 }
 
+const VALID_PROTOCOLS = ['OpenAI', 'OpenAI-Compatible', 'Anthropic', 'Gemini', 'Doubao', 'Wenxin'];
+
+function parsePrice(value: unknown): number | null {
+  if (value === null || value === '' || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function handleUpdateProvider(ctx: AdminContext) {
   const id = ctx.params['id']!;
   const existing = ctx.repos.providers.getById(id);
@@ -212,30 +223,52 @@ function handleUpdateProvider(ctx: AdminContext) {
 
   const updates: Record<string, unknown> = {};
 
-  if (body['name'] !== undefined) updates['name'] = body['name'] as string;
-  if (body['protocol'] !== undefined) updates['protocol'] = body['protocol'] as string;
-  if (body['baseUrl'] !== undefined) updates['baseUrl'] = body['baseUrl'] as string;
+  if (body['name'] !== undefined) {
+    const name = body['name'] as string;
+    if (!name || name.trim().length === 0) return { error: 'name must be non-empty' };
+    updates['name'] = name;
+  }
+  if (body['protocol'] !== undefined) {
+    const protocol = body['protocol'] as string;
+    if (!VALID_PROTOCOLS.includes(protocol)) return { error: `protocol must be one of: ${VALID_PROTOCOLS.join(', ')}` };
+    updates['protocol'] = protocol;
+  }
+  if (body['baseUrl'] !== undefined) {
+    const baseUrl = body['baseUrl'] as string;
+    if (!baseUrl || baseUrl.trim().length === 0) return { error: 'baseUrl must be non-empty' };
+    updates['baseUrl'] = baseUrl;
+  }
 
   // Handle API key update
+  let apiKeySkipped = false;
   if (body['apiKey'] !== undefined) {
     const newApiKey = body['apiKey'] as string;
-    if (newApiKey && newApiKey.length > 0 && ctx.deps.masterKey) {
-      const encrypted = encrypt(newApiKey, ctx.deps.masterKey);
-      updates['apiKeyCiphertext'] = encrypted.ciphertext;
-      updates['apiKeyIv'] = encrypted.iv;
-      updates['apiKeyTag'] = encrypted.tag;
+    if (newApiKey && newApiKey.length > 0) {
+      if (!ctx.deps.masterKey) {
+        apiKeySkipped = true;
+      } else {
+        const encrypted = encrypt(newApiKey, ctx.deps.masterKey);
+        updates['apiKeyCiphertext'] = encrypted.ciphertext;
+        updates['apiKeyIv'] = encrypted.iv;
+        updates['apiKeyTag'] = encrypted.tag;
+      }
     }
   }
 
-  if (body['inputPrice'] !== undefined) updates['inputPricePerMTokensUsd'] = body['inputPrice'] ? Number(body['inputPrice']) : null;
-  if (body['outputPrice'] !== undefined) updates['outputPricePerMTokensUsd'] = body['outputPrice'] ? Number(body['outputPrice']) : null;
-  if (body['cachedInputPrice'] !== undefined) updates['cachedInputPricePerMTokensUsd'] = body['cachedInputPrice'] ? Number(body['cachedInputPrice']) : null;
+  if (body['inputPrice'] !== undefined) updates['inputPricePerMTokensUsd'] = parsePrice(body['inputPrice']);
+  if (body['outputPrice'] !== undefined) updates['outputPricePerMTokensUsd'] = parsePrice(body['outputPrice']);
+  if (body['cachedInputPrice'] !== undefined) updates['cachedInputPricePerMTokensUsd'] = parsePrice(body['cachedInputPrice']);
   if (body['enabled'] !== undefined) updates['enabled'] = body['enabled'] === true;
 
-  if (Object.keys(updates).length === 0) return { error: 'no updates provided' };
+  if (Object.keys(updates).length === 0) {
+    if (apiKeySkipped) return { error: 'cannot update API key: master key not configured' };
+    return { error: 'no updates provided' };
+  }
 
   ctx.repos.providers.update(id, updates as Parameters<typeof ctx.repos.providers.update>[1]);
-  return { updated: id };
+  const result: Record<string, unknown> = { updated: id };
+  if (apiKeySkipped) result['warning'] = 'API key update skipped: master key not configured';
+  return result;
 }
 
 function handleSyncModels(ctx: AdminContext) {
@@ -559,7 +592,9 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
     };
     try {
       const result = await r.handler(c);
-      json(res, result);
+      // Handlers signal business errors by returning { error: string }.
+      const isError = result !== null && typeof result === 'object' && !Array.isArray(result) && 'error' in result;
+      json(res, result, isError ? 400 : 200);
     } catch (e) {
       json(res, { error: (e as Error).message }, 400);
     }

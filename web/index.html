@@ -648,7 +648,6 @@
         <div class="stat" style="font-size:${c.value ? 32 : 18}px">${c.value || c.sub}</div>
       </div>`).join('');
 
-    const max = Math.max(1, ...(stats.series7d || []).map(b => b.requestCount));
     renderChart('series', stats.series7d || []);
   }
 
@@ -660,7 +659,8 @@
       return;
     }
 
-    const max = Math.max(...data.map(d => d.requestCount));
+    const max = Math.max(1, ...data.map(d => d.requestCount));
+    const dpr = window.devicePixelRatio || 1;
     const width = container.clientWidth || 600;
     const height = 120;
     const padding = { top: 10, right: 10, bottom: 30, left: 40 };
@@ -668,8 +668,8 @@
     const chartHeight = height - padding.top - padding.bottom;
 
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
     canvas.style.width = '100%';
     canvas.style.height = height + 'px';
     container.innerHTML = '';
@@ -677,6 +677,7 @@
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    ctx.scale(dpr, dpr);
 
     const barWidth = (chartWidth / data.length) * 0.6;
     const barGap = (chartWidth / data.length) * 0.4;
@@ -700,8 +701,10 @@
 
       ctx.fillStyle = '#3b82f6';
       ctx.beginPath();
-      ctx.roundRect(x, y, barWidth, barHeight, [4, 4, 0, 0]);
-      ctx.fill();
+      if (barHeight > 0) {
+        ctx.roundRect(x, y, barWidth, barHeight, [4, 4, 0, 0]);
+        ctx.fill();
+      }
 
       // X-axis labels
       ctx.fillStyle = '#94a3b8';
@@ -868,8 +871,8 @@
           <div class="form-row"><label>Base URL</label><input name="baseUrl" value="${escape(p.baseUrl)}" required></div>
           <div class="form-row"><label>API Key (leave blank to keep current)</label><input name="apiKey" type="password" placeholder="sk-..."></div>
           <div class="form-row" style="display:flex;gap:12px">
-            <div style="flex:1"><label>Input Price ($/MTok)</label><input name="inputPrice" type="number" step="0.000001" value="${p.inputPrice || ''}"></div>
-            <div style="flex:1"><label>Output Price ($/MTok)</label><input name="outputPrice" type="number" step="0.000001" value="${p.outputPrice || ''}"></div>
+            <div style="flex:1"><label>Input Price ($/MTok, empty = unset)</label><input name="inputPrice" type="number" step="0.000001" value="${p.inputPrice ?? ''}"></div>
+            <div style="flex:1"><label>Output Price ($/MTok, empty = unset)</label><input name="outputPrice" type="number" step="0.000001" value="${p.outputPrice ?? ''}"></div>
           </div>
           <div class="form-actions">
             <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
@@ -882,13 +885,18 @@
         const fd = new FormData(e.target);
         const body = {};
         for (const [k, v] of fd) {
-          if (v !== '') body[k] = v;
+          if (k === 'apiKey') {
+            // Empty apiKey means "keep current": omit the field entirely
+            if (v !== '') body[k] = v;
+          } else {
+            // All other fields are always sent; empty string clears prices, server validates required text fields
+            body[k] = v;
+          }
         }
-        // Remove apiKey if empty
-        if (!body['apiKey']) delete body['apiKey'];
         try {
-          await api('/providers/' + id, { method: 'PATCH', body });
-          toast('Provider updated', 'ok');
+          const result = await api('/providers/' + id, { method: 'PATCH', body });
+          if (result && result.error) { toast(result.error, 'err'); return; }
+          toast('Provider updated' + (result && result.warning ? ' (' + result.warning + ')' : ''), 'ok');
           closeModal();
           loadProviders();
         } catch (err) { toast(err.message, 'err'); }
@@ -1261,6 +1269,17 @@
   // Init
   setView(currentView());
   window.addEventListener('hashchange', () => setView(currentView()));
+
+  // Redraw chart on window resize when dashboard is visible
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (document.querySelector('.view[data-view="dashboard"]').classList.contains('active')) {
+        loadDashboard().catch(() => {});
+      }
+    }, 200);
+  });
 
   // ---- Mobile sidebar toggle ----
   const sidebar = document.getElementById('sidebar');
