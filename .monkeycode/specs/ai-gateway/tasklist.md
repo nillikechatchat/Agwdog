@@ -87,20 +87,20 @@
 
 ---
 
-- [ ] 5. 鉴权、预算与 Virtual Key（Req 5，design §2）
-  - [ ] 5.1 Auth Middleware `src/server/middleware/auth.ts`
+- [x] 5. 鉴权、预算与 Virtual Key（Req 5，design §2）
+  - [x] 5.1 Auth Keys `src/auth/keys.ts` + Pipeline `src/auth/pipeline.ts`
     - 解析 `Authorization: Bearer <key>`，SHA-256 → 查表
     - 校验 status=active、allowedModels 白名单
-    - 返回 401（无效）/ 403（白名单外）
-  - [ ] 5.2 RPM/TPM 限速 `src/ratelimit/sliding-window.ts`
-    - 60 秒滚动窗口，每 Key 计数；超额 429 + `Retry-After`
-  - [ ] 5.3 Budget Tracker `src/budget/tracker.ts`
-    - `increment(keyId, amount)` — 累加 day/month/total 三计数器
+    - 返回 401（无效/吊销）/ 403（白名单外）
+  - [x] 5.2 RPM/TPM 限速 `src/auth/rate-limit.ts`
+    - 60 秒滚动窗口，每 Key 计数；超额 429 + `Retry-After`；超限不消耗配额
+  - [x] 5.3 Budget Tracker `src/budget/tracker.ts`
+    - `commit(keyId, amount)` — 累加 day/month/total 三计数器并通过 BudgetRepo 持久化
     - 80% 阈值去重告警（同周期同阈值只写一次 events）
-    - `hard` 模式超额返回 402 `budget_exceeded`，错误体含 `exceededBudget/spentUsd/budgetUsd`
+    - `hard` 模式超额返回 402 `budget_exceeded`
     - 日/月切换自动清零（按 UTC 边界）
-  - [ ] 5.4 单测 `test/unit/auth/`、`test/unit/budget/`
-    - Key 校验、吊销、白名单
+  - [x] 5.4 单测 + 集成测试 `test/unit/auth/`、`test/integration/{auth,budget}/`
+    - Key 校验、吊销、白名单、RPM/TPM、Budget 软硬模式、80% 告警去重
     - RPM/TPM 边界
     - 预算 80% 告警去重、hard/soft 模式、日/月切换清零
 

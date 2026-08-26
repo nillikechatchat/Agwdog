@@ -69,19 +69,22 @@ export {
 
 export {
   startServer,
-  resolveRoute,
   startSseResponse,
   BodyTooLargeError,
   InvalidJsonError,
-  type HttpMethod,
-  type Route,
-  type RouteMatch,
   type DispatchFn,
   type DispatchInput,
   type GatewayContext,
   type ServerOptions,
 } from './server/http.js';
-export { match, ROUTE_TABLE } from './server/router.js';
+export {
+  match,
+  resolveRoute,
+  ROUTE_TABLE,
+  type HttpMethod,
+  type Route,
+  type RouteMatch,
+} from './server/router.js';
 export {
   createInflightTracker,
   installShutdown,
@@ -89,3 +92,34 @@ export {
   type ShutdownHandle,
   type LifecycleOptions,
 } from './server/lifecycle.js';
+
+export {
+  generateVirtualKey,
+  hashKey,
+  extractBearerToken,
+  authenticate,
+  parseAllowedModels,
+  isModelAllowed,
+  type AuthSuccess,
+  type AuthFailure,
+} from './auth/keys.js';
+export {
+  RateLimiter,
+  type RateLimitConfig,
+  type RateLimitDecision,
+} from './auth/rate-limit.js';
+export {
+  BudgetTracker,
+  dayKey,
+  monthKey,
+  type PeriodState,
+  type BudgetSnapshot,
+  type BudgetCheckResult,
+} from './budget/tracker.js';
+export {
+  authenticateRequest,
+  type AuthContext,
+  type AuthRejection,
+  type AuthRequestInput,
+  type AuthRequestDeps,
+} from './auth/pipeline.js';
