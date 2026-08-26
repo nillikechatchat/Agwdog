@@ -178,8 +178,14 @@ async function handleRequest(
 
   // Admin subsystem is matched first so its HTML and JSON endpoints are
   // served regardless of whether the path collides with a future gateway
-  // route. The handler returns true on match.
-  if (opts?.admin && (pathname === '/admin' || pathname.startsWith('/admin/'))) {
+  // route. The handler returns true on match. The bare root path is routed
+  // here too so preview panes opening "/" land on the admin UI (302).
+  const isAdminPath =
+    pathname === '/' ||
+    pathname === '' ||
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/');
+  if (opts?.admin && isAdminPath) {
     if (!ctxRef.current?.db) {
       // No DB available; admin can't operate. Surface 503 to the client.
       writeJsonError(res, 503, 'admin_unavailable', 'admin subsystem requires a database');

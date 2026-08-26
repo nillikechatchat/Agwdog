@@ -184,6 +184,13 @@ describe('admin api', () => {
     expect(text).toContain('# TYPE');
   });
 
+  it('GET / redirects to /admin without auth', async () => {
+    const { req, res, capture } = makeReqRes('/', 'GET');
+    await handleAdminRequest(req, res, deps);
+    expect(res.statusCode).toBe(302);
+    expect(capture.headers['location']).toBe('/admin');
+  });
+
   it('requires bearer token when adminToken configured', async () => {
     const secured: AdminApiDeps = { ...deps, adminToken: 'sekret' };
     const noAuth = makeReqRes('/admin/api/keys', 'GET');

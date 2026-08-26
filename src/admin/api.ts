@@ -576,6 +576,15 @@ function locateWebIndex(): string | null {
 export async function handleAdminRequest(req: IncomingMessage, res: ServerResponse, deps: AdminApiDeps): Promise<boolean> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const pathname = url.pathname;
+  if (
+    (pathname === '/' || pathname === '') &&
+    (req.method === 'GET' || req.method === 'HEAD')
+  ) {
+    res.statusCode = 302;
+    res.setHeader('Location', '/admin');
+    res.end();
+    return true;
+  }
   if (pathname !== '/admin' && !pathname.startsWith('/admin/')) return false;
 
   if (pathname === '/admin' || pathname === '/admin/' || pathname === '/admin/index.html') {
