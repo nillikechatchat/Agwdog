@@ -125,16 +125,7 @@ export {
 } from './auth/pipeline.js';
 
 export { CacheRepo } from './storage/repos/cache.js';
-export type { NewCacheEntryInput, CacheLookupResult } from './storage/repos/cache.js';
-export {
-  ExactCache,
-  type CachePolicy,
-  type CacheWriteInput,
-  type CacheLookupInput,
-  type CacheHit,
-  type CacheMiss,
-  type CacheLookupOutcome,
-} from './cache/exact.js';
+export type { NewCacheEntryInput, CacheLookupResult as CacheRepoLookupResult } from './storage/repos/cache.js';
 export { writeCacheHit } from './cache/serialize.js';
 
 export {
@@ -204,3 +195,64 @@ export {
   type HttpConnectorDeps,
   type SSEEvent,
 } from './connector/index.js';
+
+export {
+  SemanticCache,
+  PromptCacheTracker,
+  ResponseContinuationCache,
+  CacheOrchestrator,
+  setEmbeddingProvider,
+  getEmbeddingProvider,
+  embed,
+  cosineSimilarity,
+  normalize,
+  serializeEmbedding,
+  deserializeEmbedding,
+  DEFAULT_SEMANTIC_OPTIONS,
+  DEFAULT_CACHE_CONFIG,
+  cacheKeyFor,
+  type CacheConfig,
+  type CacheLookupResult,
+  type CacheOrchestratorDeps,
+  type OrchestratorLookupInput,
+  type CachePolicy,
+  type CacheWriteInput,
+  type CacheLookupInput as CacheLookupInputExact,
+  type CacheHit,
+  type CacheMiss,
+  type CacheLookupOutcome,
+  type SemanticCacheOptions,
+  type ResponseCacheEntry,
+  type EmbeddingProvider,
+  type PromptCacheMarker,
+} from './cache/index.js';
+
+export {
+  PromptTemplateRepo,
+  TemplateRenderer,
+  TemplateError,
+  extractVariables,
+  type PromptTemplate,
+  type PromptVariableSpec,
+  type RenderContext,
+} from './prompts/index.js';
+
+export {
+  Guardrails,
+  GuardrailViolation,
+  DEFAULT_GUARDRAILS,
+  type GuardrailConfig,
+  type GuardrailDecision,
+} from './guardrails/index.js';
+
+export {
+  MCPClient,
+  MCPManager,
+  MCPError,
+  mcpToolId,
+  newRequestId,
+  type MCPServerSpec,
+  type MCPTool,
+  type MCPResource,
+  type MCPCallResult,
+} from './mcp/index.js';

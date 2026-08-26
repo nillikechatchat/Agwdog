@@ -249,6 +249,22 @@ CREATE TABLE cache_invalidation (
 );
 CREATE INDEX idx_invalidation_created ON cache_invalidation(created_at DESC);
 
+-- 17. prompt_templates — versioned prompt library
+CREATE TABLE prompt_templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  body TEXT NOT NULL,
+  variables TEXT NOT NULL DEFAULT '[]',
+  model_hints TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  is_latest INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_prompt_templates_name ON prompt_templates(name);
+CREATE UNIQUE INDEX idx_prompt_templates_name_version ON prompt_templates(name, version);
+CREATE INDEX idx_prompt_templates_latest ON prompt_templates(name) WHERE is_latest = 1;
+
 -- 13. schema_version — current migration version (single row)
 CREATE TABLE schema_version (
   version INTEGER PRIMARY KEY
