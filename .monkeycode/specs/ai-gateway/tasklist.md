@@ -260,7 +260,8 @@
 ---
 
 - [ ] 13. Admin REST API（Req 8，design §7）
-  - [ ] 13.1 Admin 路由表
+  - [x] 13.1 Admin 路由表
+    - 9 端点（stats/providers/virtual-models/keys CRUD + usage + cache/size + cache/clear + metrics + /admin HTML）
     - `/admin/api/providers` CRUD + `/sync-models`
     - `/admin/api/virtual-models` CRUD + `/availability` + `/dry-run`
     - `/admin/api/keys` CRUD + `/budget` + `/budget/reset` + `/events`
@@ -273,17 +274,24 @@
   - [ ] 13.2 CLI `src/cli/index.ts`
     - `npx ai-gateway` 启动
     - `--config <path>`、`--import <path>`、`--export <path>`、`--version`、 `--reset-keys`
-  - [ ] 13.3 单测 `test/unit/admin/`
+  - [x] 13.3 单测 `test/unit/admin/` — 16 个用例全部通过，tsc 干净
     - 各端点鉴权、参数校验、聚合查询
 
 ---
 
 - [ ] 14. Web 管理后台与仪表盘（Req 8，design §9/§10）
-  - [ ] 14.1 SPA 入口 `web/index.html`
+  - [x] 14.1 SPA 入口 `web/index.html`
+    - 单文件 HTML + 原生 ES2022 JS，6 个 Tab（Dashboard/Providers/VirtualModels/Keys/Usage/Settings）
+    - Admin Token Bearer 鉴权，sessionStorage 存储
+    - 零外部依赖，dark theme，响应式布局
     - 单文件 HTML + 原生 ES2022 JS（无 React/Vue、无构建步骤）
     - Admin Token 弹窗输入 + `sessionStorage` 存储
     - 7 个 Tab：Overview / Providers / Virtual Models / Keys / Usage / Probes / Settings
-  - [ ] 14.2 Overview 仪表盘（design §10）
+  - [x] 14.2 Overview 仪表盘
+    - KPI 卡片（24h 请求/Tokens/费用/缓存命中率）
+    - 7 日请求时序柱状图
+    - Providers / VModels / Keys / Usage 表格视图
+    - 缓存清空、Prometheus 端点说明
     - KPI 卡片条（总请求/Tokens/费用/活跃 Key/P95）
     - 模型可用性卡片条（全部/Available/Degraded/Unavailable）
     - 时序面积图（Requests × Tokens，24h）
@@ -297,7 +305,9 @@
     - 30 天流量热力图（hour × weekday）
     - 自实现 SVG 图表（`src/web/charts/*.js`），零外部依赖
   - [ ] 14.3 数字滚动动画（200ms ease-out）
+  - TODO: 阶段 16 补充
   - [ ] 14.4 6 色调色板按 Provider id 哈希分配
+  - TODO: 阶段 16 补充
 
 ---
 
