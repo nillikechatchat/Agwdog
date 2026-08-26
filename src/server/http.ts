@@ -21,9 +21,12 @@ import type { AddressInfo } from 'node:net';
 
 import { log } from '../utils/logger.js';
 import type { Database } from '../storage/db.js';
+import type { Repositories } from '../storage/index.js';
+import type { Registry } from '../observability/registry.js';
 import { createInflightTracker, installShutdown, type InflightTracker, type ShutdownHandle } from './lifecycle.js';
 import { resolveRoute, type HttpMethod } from './router.js';
 import { readJsonBody, BodyTooLargeError, InvalidJsonError } from './middleware/parse.js';
+import { handleAdminRequest } from '../admin/index.js';
 
 export interface GatewayContext {
   requestId: string;
@@ -52,6 +55,13 @@ export interface ServerOptions {
   onListen?: (info: { host: string; port: number }) => void;
   /** Called when shutdown completes. */
   onStopped?: () => void | Promise<void>;
+  /** Optional admin subsystem dependencies. When provided, requests to
+   * `/admin/*` are served before the gateway route table. */
+  admin?: {
+    repos: Repositories;
+    registry: Registry;
+    adminToken?: string;
+  };
 }
 
 const DEFAULT_PORT = 3000;
@@ -103,7 +113,7 @@ export function startServer(opts: ServerOptions & { dispatch: DispatchFn; db?: D
 
   server.on('request', (req, res) => {
     inflight.begin();
-    void handleRequest(ctxRef, serverRef, req, res, dispatch, inflight).finally(() => inflight.end());
+    void handleRequest(ctxRef, serverRef, req, res, dispatch, inflight, opts).finally(() => inflight.end());
   });
 
   server.on('error', (err) => {
@@ -146,6 +156,7 @@ async function handleRequest(
   res: ServerResponse,
   dispatch: DispatchFn,
   inflight: InflightTracker,
+  opts: ServerOptions & { dispatch: DispatchFn; db?: Database | null },
 ): Promise<void> {
   const requestId = generateRequestId();
   res.setHeader('X-Request-Id', requestId);
@@ -163,6 +174,28 @@ async function handleRequest(
   const url = req.url ?? '/';
   const qIdx = url.indexOf('?');
   const pathname = qIdx === -1 ? url : url.slice(0, qIdx);
+
+  // Admin subsystem is matched first so its HTML and JSON endpoints are
+  // served regardless of whether the path collides with a future gateway
+  // route. The handler returns true on match.
+  if (opts?.admin && (pathname === '/admin' || pathname.startsWith('/admin/'))) {
+    if (!ctxRef.current?.db) {
+      // No DB available; admin can't operate. Surface 503 to the client.
+      writeJsonError(res, 503, 'admin_unavailable', 'admin subsystem requires a database');
+      return;
+    }
+    try {
+      const handled = await handleAdminRequest(req, res, {
+        repos: opts.admin.repos,
+        registry: opts.admin.registry,
+        adminToken: opts.admin.adminToken,
+      });
+      if (handled) return;
+    } catch (err) {
+      if (!res.headersSent) writeJsonError(res, 500, 'admin_error', errMessage(err));
+      return;
+    }
+  }
 
   const route = resolveRoute(method, pathname);
   if (!route) {

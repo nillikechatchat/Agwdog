@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ai-gateway · admin</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #1c2129;
+      --border: #30363d;
+      --border-2: #444c56;
+      --text: #e6edf3;
+      --text-dim: #8b949e;
+      --accent: #58a6ff;
+      --accent-2: #1f6feb;
+      --ok: #3fb950;
+      --warn: #d29922;
+      --err: #f85149;
+      --code-bg: #0a0d12;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    header .version { color: var(--text-dim); font-size: 12px; }
+    nav { display: flex; gap: 4px; margin-left: 24px; }
+    nav button {
+      background: transparent;
+      color: var(--text-dim);
+      border: 0;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font: inherit;
+    }
+    nav button:hover { color: var(--text); background: var(--panel-2); }
+    nav button.active { color: var(--text); background: var(--panel-2); border: 1px solid var(--border); }
+    .spacer { flex: 1; }
+    main { padding: 20px; max-width: 1280px; margin: 0 auto; }
+    .grid { display: grid; gap: 16px; }
+    .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+    .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 14px; color: var(--text-dim); font-weight: 500; }
+    .stat { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .stat .sub { display: block; font-size: 12px; color: var(--text-dim); font-weight: 400; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-dim); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tr:hover td { background: var(--panel-2); }
+    .pill {
+      display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px;
+      background: var(--panel-2); border: 1px solid var(--border);
+    }
+    .pill.ok { color: var(--ok); border-color: rgba(63,185,80,0.4); }
+    .pill.warn { color: var(--warn); border-color: rgba(210,153,34,0.4); }
+    .pill.err { color: var(--err); border-color: rgba(248,81,73,0.4); }
+    button.action {
+      background: var(--accent-2);
+      color: white; border: 0; padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit;
+    }
+    button.action:hover { background: var(--accent); }
+    button.action.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    button.action.danger { background: #6e1620; }
+    button.action.danger:hover { background: #8a1c2a; }
+    input, select {
+      background: var(--code-bg); color: var(--text); border: 1px solid var(--border);
+      padding: 6px 10px; border-radius: 6px; font: inherit; font-family: ui-monospace, monospace;
+    }
+    input:focus, select:focus { outline: 0; border-color: var(--accent); }
+    form.inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    label { color: var(--text-dim); font-size: 12px; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+    .empty { color: var(--text-dim); padding: 20px; text-align: center; }
+    pre { background: var(--code-bg); padding: 12px; border-radius: 6px; overflow: auto; }
+    code { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
+    .toolbar .spacer { flex: 1; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .series {
+      display: flex; align-items: flex-end; gap: 2px; height: 80px; padding: 8px 0;
+    }
+    .series .bar {
+      flex: 1; background: var(--accent-2); opacity: 0.7; min-height: 1px;
+      border-radius: 2px 2px 0 0; transition: opacity 0.2s;
+    }
+    .series .bar:hover { opacity: 1; }
+    .series .bar[data-empty="1"] { background: var(--border); opacity: 0.3; }
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; padding: 10px 16px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 6px; z-index: 100; max-width: 360px;
+    }
+    .toast.err { border-color: var(--err); }
+    .toast.ok { border-color: var(--ok); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>ai-gateway</h1>
+  <span class="version" id="version">v0.1.0</span>
+  <nav id="nav"></nav>
+  <span class="spacer"></span>
+  <button class="action ghost" id="refresh">Refresh</button>
+</header>
+
+<main>
+  <section class="view" data-view="dashboard">
+    <div class="grid cols-4" id="dashCards"></div>
+    <div class="card" style="margin-top:16px">
+      <h2>Last 7 days · requests</h2>
+      <div class="series" id="series"></div>
+    </div>
+  </section>
+
+  <section class="view" data-view="providers">
+    <div class="toolbar">
+      <h2 style="margin:0">Providers</h2>
+      <span class="spacer"></span>
+      <span class="pill" id="providerCount">0</span>
+    </div>
+    <div id="providerList"></div>
+  </section>
+
+  <section class="view" data-view="vmodels">
+    <div class="toolbar">
+      <h2 style="margin:0">Virtual models</h2>
+      <span class="spacer"></span>
+      <span class="pill" id="vmodelCount">0</span>
+    </div>
+    <div id="vmodelList"></div>
+  </section>
+
+  <section class="view" data-view="keys">
+    <div class="toolbar">
+      <h2 style="margin:0">API keys</h2>
+      <span class="spacer"></span>
+      <button class="action" id="newKey">+ New key</button>
+    </div>
+    <div id="keyList"></div>
+    <div id="newKeyDialog" style="display:none" class="card" style="margin-top:16px">
+      <h2>Create key</h2>
+      <form class="inline" id="keyForm">
+        <label>Name <input name="name" required placeholder="prod-app"></label>
+        <label>Daily $ <input name="budgetDailyUsd" type="number" step="0.01" placeholder="100"></label>
+        <label>Monthly $ <input name="budgetMonthlyUsd" type="number" step="0.01"></label>
+        <label>Total $ <input name="budgetTotalUsd" type="number" step="0.01"></label>
+        <button type="submit" class="action">Create</button>
+        <button type="button" class="action ghost" id="cancelKey">Cancel</button>
+      </form>
+      <div id="newKeyResult" style="margin-top:12px; display:none">
+        <p style="color:var(--ok)">Token (copy now — shown once):</p>
+        <pre><code id="newKeyToken"></code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" data-view="usage">
+    <div class="toolbar">
+      <h2 style="margin:0">Recent requests</h2>
+      <span class="spacer"></span>
+      <label>Since
+        <select id="usageRange">
+          <option value="3600000">last hour</option>
+          <option value="86400000" selected>last day</option>
+          <option value="604800000">last 7d</option>
+        </select>
+      </label>
+    </div>
+    <div class="card" style="padding:0; overflow:auto">
+      <table>
+        <thead><tr>
+          <th>Time</th><th>Model</th><th>Protocol</th>
+          <th>Tokens</th><th>Cost</th><th>Cache</th>
+          <th>Status</th><th>Latency</th>
+        </tr></thead>
+        <tbody id="usageRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="view" data-view="settings">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>Cache</h2>
+        <p>Live entries: <span class="stat" id="cacheSize">-</span></p>
+        <button class="action danger" id="clearCache">Clear cache</button>
+      </div>
+      <div class="card">
+        <h2>Metrics</h2>
+        <p>Prometheus endpoint (use the gateway's own <code>/metrics</code> if behind a proxy, or the dedicated admin one):</p>
+        <pre><code>GET /admin/metrics
+GET /metrics</code></pre>
+      </div>
+      <div class="card">
+        <h2>About</h2>
+        <p>ai-gateway · local-first AI API gateway. SQLite, 0 external services.</p>
+        <p style="color:var(--text-dim)">Press <kbd>R</kbd> to refresh current view.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toastContainer"></div>
+
+<script>
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+  const fmt = {
+    int: n => n == null ? '-' : Number(n).toLocaleString('en-US'),
+    usd: n => n == null ? '-' : '$' + Number(n).toFixed(4),
+    pct: n => (n * 100).toFixed(1) + '%',
+    time: ms => new Date(ms).toLocaleString(),
+    rel: ms => {
+      const d = Date.now() - ms;
+      if (d < 60_000) return Math.floor(d / 1000) + 's ago';
+      if (d < 3_600_000) return Math.floor(d / 60_000) + 'm ago';
+      if (d < 86_400_000) return Math.floor(d / 3_600_000) + 'h ago';
+      return Math.floor(d / 86_400_000) + 'd ago';
+    },
+  };
+
+  const VIEWS = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'providers', label: 'Providers' },
+    { id: 'vmodels',   label: 'Virtual models' },
+    { id: 'keys',      label: 'Keys' },
+    { id: 'usage',     label: 'Usage' },
+    { id: 'settings',  label: 'Settings' },
+  ];
+
+  function setView(id) {
+    $$('.view').forEach(v => v.classList.toggle('active', v.dataset.view === id));
+    $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === id));
+    if (location.hash !== '#' + id) location.hash = id;
+    loadView(id);
+  }
+  function currentView() {
+    const h = location.hash.replace('#', '');
+    return VIEWS.some(v => v.id === h) ? h : 'dashboard';
+  }
+
+  // nav
+  const nav = $('#nav');
+  for (const v of VIEWS) {
+    const b = document.createElement('button');
+    b.textContent = v.label;
+    b.dataset.view = v.id;
+    b.addEventListener('click', () => setView(v.id));
+    nav.appendChild(b);
+  }
+  setView(currentView());
+  window.addEventListener('hashchange', () => setView(currentView()));
+
+  $('#refresh').addEventListener('click', () => loadView(currentView()));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'r' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT') {
+      loadView(currentView());
+    }
+  });
+
+  // ---- API client ----
+  async function api(path, opts = {}) {
+    const res = await fetch('/admin/api' + path, {
+      method: opts.method || 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status}: ${text}`);
+    }
+    return res.json();
+  }
+
+  function toast(msg, kind) {
+    const t = document.createElement('div');
+    t.className = 'toast' + (kind ? ' ' + kind : '');
+    t.textContent = msg;
+    $('#toastContainer').appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
+  // ---- loaders ----
+  async function loadDashboard() {
+    const stats = await api('/stats');
+    const cards = [
+      { label: 'Requests (24h)', value: fmt.int(stats.today.requests) },
+      { label: 'Tokens (24h)',   value: fmt.int(stats.today.totalTokens) },
+      { label: 'Cost (24h)',     value: fmt.usd(stats.today.costUsd), sub: 'USD' },
+      { label: 'Cache hit rate', value: fmt.pct(stats.cacheHitRate), sub: 'last 7d' },
+    ];
+    $('#dashCards').innerHTML = cards.map(c => `
+      <div class="card"><h2>${c.label}</h2>
+        <div class="stat">${c.value}<span class="sub">${c.sub || ''}</span></div>
+      </div>`).join('') + `
+      <div class="card"><h2>Virtual models</h2>
+        <div class="stat">${fmt.int(stats.virtualModels)}</div>
+      </div>
+      <div class="card"><h2>Active API keys</h2>
+        <div class="stat">${fmt.int(stats.keys)}</div>
+      </div>
+      <div class="card"><h2>Cache entries</h2>
+        <div class="stat">${fmt.int(stats.cacheSize)}</div>
+      </div>
+      <div class="card"><h2>Server time</h2>
+        <div class="stat" style="font-size:18px">${fmt.time(stats.timestamp)}</div>
+      </div>`;
+
+    // series
+    const max = Math.max(1, ...(stats.series7d || []).map(b => b.requestCount));
+    const series = $('#series');
+    series.innerHTML = (stats.series7d || []).map(b => {
+      const h = Math.round((b.requestCount / max) * 80);
+      return `<div class="bar" title="${b.bucket}: ${b.requestCount}" style="height:${Math.max(1, h)}px"></div>`;
+    }).join('') || '<div class="empty">no data</div>';
+  }
+
+  async function loadProviders() {
+    const r = await api('/providers');
+    $('#providerCount').textContent = r.providers.length;
+    if (r.providers.length === 0) {
+      $('#providerList').innerHTML = '<div class="card empty">No providers configured yet. Add one via the CLI: <code>ai-gateway provider add</code></div>';
+      return;
+    }
+    $('#providerList').innerHTML = r.providers.map(p => `
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong>${escape(p.name)}</strong>
+          <span class="pill">${p.protocol}</span>
+          <span class="pill ${p.enabled ? 'ok' : 'err'}">${p.enabled ? 'enabled' : 'disabled'}</span>
+          <code style="color:var(--text-dim)">${escape(p.baseUrl || '')}</code>
+        </div>
+        ${p.models.length === 0 ? '<div class="empty">no models</div>' : `
+        <table>
+          <thead><tr><th>Model</th><th>Display name</th><th>Availability</th><th>Ctx</th><th>Stream</th><th>Tools</th></tr></thead>
+          <tbody>${p.models.map(m => `
+            <tr>
+              <td><code>${escape(m.modelId)}</code></td>
+              <td>${escape(m.displayName || '-')}</td>
+              <td><span class="pill ${m.availability === 'available' ? 'ok' : m.availability === 'degraded' ? 'warn' : 'err'}">${m.availability}</span></td>
+              <td>${fmt.int(m.contextWindow)}</td>
+              <td>${m.supportsStream ? '✓' : '-'}</td>
+              <td>${m.supportsTools ? '✓' : '-'}</td>
+            </tr>`).join('')}</tbody>
+        </table>`}
+      </div>`).join('');
+  }
+
+  async function loadVModels() {
+    const r = await api('/virtual-models');
+    $('#vmodelCount').textContent = r.virtualModels.length;
+    if (r.virtualModels.length === 0) {
+      $('#vmodelList').innerHTML = '<div class="card empty">No virtual models. Create one: <code>ai-gateway vmodel create</code></div>';
+      return;
+    }
+    $('#vmodelList').innerHTML = `
+      <div class="card" style="padding:0">
+        <table>
+          <thead><tr><th>Name</th><th>Strategy</th><th>Max retries</th><th>Created</th></tr></thead>
+          <tbody>${r.virtualModels.map(v => `
+            <tr>
+              <td><strong>${escape(v.name)}</strong> <code style="color:var(--text-dim)">${escape(v.id)}</code></td>
+              <td><span class="pill">${v.strategy}</span></td>
+              <td>${v.maxRetries}</td>
+              <td>${fmt.rel(v.createdAt)}</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  }
+
+  async function loadKeys() {
+    const r = await api('/keys');
+    if (r.keys.length === 0) {
+      $('#keyList').innerHTML = '<div class="card empty">No keys yet — click "+ New key".</div>';
+      return;
+    }
+    $('#keyList').innerHTML = `
+      <div class="card" style="padding:0">
+        <table>
+          <thead><tr><th>Name</th><th>Prefix</th><th>Status</th><th>Budget</th><th>Created</th><th></th></tr></thead>
+          <tbody>${r.keys.map(k => {
+            const b = [k.budgetDailyUsd, k.budgetMonthlyUsd, k.budgetTotalUsd].filter(x => x != null).map(x => '$' + x).join(' / ');
+            return `<tr>
+              <td><strong>${escape(k.name)}</strong></td>
+              <td><code>${escape(k.prefix || '')}</code></td>
+              <td><span class="pill ${k.status === 'active' ? 'ok' : 'err'}">${k.status}</span></td>
+              <td>${b || '<span style="color:var(--text-dim)">-</span>'}</td>
+              <td>${fmt.rel(k.createdAt)}</td>
+              <td><button class="action danger" data-del="${k.id}">Revoke</button></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>`;
+    $$('button[data-del]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Revoke and delete this key?')) return;
+      try {
+        await api('/keys/' + b.dataset.del, { method: 'DELETE' });
+        toast('Key deleted', 'ok');
+        loadKeys();
+      } catch (e) { toast(e.message, 'err'); }
+    }));
+  }
+
+  $('#newKey').addEventListener('click', () => { $('#newKeyDialog').style.display = 'block'; $('#newKeyResult').style.display = 'none'; });
+  $('#cancelKey').addEventListener('click', () => { $('#newKeyDialog').style.display = 'none'; });
+  $('#keyForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = { name: fd.get('name') };
+    for (const k of ['budgetDailyUsd', 'budgetMonthlyUsd', 'budgetTotalUsd']) {
+      const v = fd.get(k);
+      if (v) body[k] = Number(v);
+    }
+    try {
+      const r = await api('/keys', { method: 'POST', body });
+      $('#newKeyToken').textContent = r.token;
+      $('#newKeyResult').style.display = 'block';
+      toast('Key created — copy the token', 'ok');
+      loadKeys();
+    } catch (err) { toast(err.message, 'err'); }
+  });
+
+  async function loadUsage() {
+    const since = Number($('#usageRange').value);
+    const r = await api('/usage?sinceMs=' + (Date.now() - since) + '&limit=100');
+    if (r.records.length === 0) {
+      $('#usageRows').innerHTML = '<tr><td colspan="8" class="empty">no records in window</td></tr>';
+      return;
+    }
+    $('#usageRows').innerHTML = r.records.map(u => {
+      const ok = u.status_code >= 200 && u.status_code < 400;
+      return `<tr>
+        <td>${fmt.time(u.created_at)}</td>
+        <td><code>${escape(u.upstream_model_id || u.virtual_model_id || '-')}</code></td>
+        <td><span class="pill">${u.client_protocol}</span></td>
+        <td>${fmt.int(u.total_tokens)}</td>
+        <td>${fmt.usd(u.cost_usd)}</td>
+        <td>${u.cache_hit === 'none' ? '-' : `<span class="pill ok">${u.cache_hit}</span>`}</td>
+        <td><span class="pill ${ok ? 'ok' : 'err'}">${u.status_code}</span></td>
+        <td>${u.latency_ms}ms</td>
+      </tr>`;
+    }).join('');
+  }
+  $('#usageRange').addEventListener('change', loadUsage);
+
+  async function loadSettings() {
+    try {
+      const r = await api('/cache/size');
+      $('#cacheSize').textContent = fmt.int(r.size);
+    } catch (e) { /* ignore */ }
+  }
+  $('#clearCache').addEventListener('click', async () => {
+    if (!confirm('Clear all cache entries?')) return;
+    try {
+      const r = await api('/cache/clear', { method: 'POST' });
+      toast(`Cleared ${r.cleared} entries`, 'ok');
+      loadSettings();
+    } catch (e) { toast(e.message, 'err'); }
+  });
+
+  function escape(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function loadView(id) {
+    const fn = {
+      dashboard: loadDashboard,
+      providers: loadProviders,
+      vmodels:   loadVModels,
+      keys:      loadKeys,
+      usage:     loadUsage,
+      settings:  loadSettings,
+    }[id];
+    if (fn) fn().catch(e => toast(e.message, 'err'));
+  }
+})();
+</script>
+</body>
+</html>
