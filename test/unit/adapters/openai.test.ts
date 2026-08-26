@@ -99,7 +99,7 @@ describe('OpenAIAdapter.parseResponse', () => {
       ],
       usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
     };
-    const r = a.parseResponse(raw);
+    const r = a.parseResponse(raw, req());
     expect(r.id).toBe('chatcmpl-1');
     expect(r.choices[0]?.message.content[0]).toEqual({ type: 'text', text: 'Hi there' });
     expect(r.usage.promptTokens).toBe(5);
@@ -124,7 +124,7 @@ describe('OpenAIAdapter.parseResponse', () => {
         },
       ],
     };
-    const r = a.parseResponse(raw);
+    const r = a.parseResponse(raw, req());
     const tu = r.choices[0]?.message.content[0];
     expect(tu?.type).toBe('tool_use');
     if (tu?.type === 'tool_use') {
@@ -139,7 +139,7 @@ describe('OpenAIAdapter.parseResponse', () => {
       id: 'x', model: 'gpt-4o', choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, prompt_tokens_details: { cached_tokens: 4 } },
     };
-    const r = a.parseResponse(raw);
+    const r = a.parseResponse(raw, req());
     expect(r.usage.cachedTokens).toBe(4);
   });
 });
@@ -151,14 +151,14 @@ describe('OpenAIAdapter.parseStreamEvent', () => {
     const ev = a.parseStreamEvent({
       id: 'x',
       choices: [{ delta: { content: 'hello ' } }],
-    });
+    }, req());
     expect(ev?.textDelta).toBe('hello ');
   });
 
   it('extracts toolUseDelta', () => {
     const ev = a.parseStreamEvent({
       choices: [{ delta: { tool_calls: [{ id: 'call_1', function: { name: 'f', arguments: '{"' } }] } }],
-    });
+    }, req());
     expect(ev?.toolUseDelta).toEqual({ id: 'call_1', name: 'f', argumentsDelta: '{"' });
   });
 
@@ -166,7 +166,7 @@ describe('OpenAIAdapter.parseStreamEvent', () => {
     const ev = a.parseStreamEvent({
       choices: [{ finish_reason: 'length' }],
       usage: { prompt_tokens: 3, completion_tokens: 1, total_tokens: 4 },
-    });
+    }, req());
     expect(ev?.finishReason).toBe('length');
     expect(ev?.usageDelta).toEqual({ promptTokens: 3, completionTokens: 1, totalTokens: 4 });
   });

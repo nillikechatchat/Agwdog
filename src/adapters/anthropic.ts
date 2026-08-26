@@ -108,6 +108,7 @@ interface AnthropicResponse {
 }
 
 export class AnthropicAdapter implements ProviderAdapter {
+  readonly protocol = 'Anthropic' as const;
   buildRequestBody(ir: IRRequest): ProviderRequestEnvelope {
     const system = collectSystem(ir.messages);
     const messages = ir.messages
@@ -147,7 +148,7 @@ export class AnthropicAdapter implements ProviderAdapter {
     return '/v1/messages';
   }
 
-  parseResponse(raw: unknown): IRResponse {
+  parseResponse(raw: unknown, _request: IRRequest): IRResponse {
     const r = raw as AnthropicResponse;
     if (!r || !Array.isArray(r.content)) {
       throw new Error('Anthropic response missing content[]');
@@ -193,7 +194,7 @@ export class AnthropicAdapter implements ProviderAdapter {
     };
   }
 
-  parseStreamEvent(raw: unknown): IRStreamEvent | null {
+  parseStreamEvent(raw: unknown, _request: IRRequest): IRStreamEvent | null {
     if (typeof raw !== 'object' || raw === null) return null;
     const obj = raw as Record<string, unknown>;
     const type = obj['type'];

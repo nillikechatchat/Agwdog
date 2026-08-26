@@ -10,7 +10,7 @@ import { OpenAIAdapter } from './openai.js';
  */
 export class OpenAICompatibleAdapter extends OpenAIAdapter {
   constructor(private readonly options: OpenAICompatibleOptions = {}) {
-    super();
+    super('OpenAI-Compatible');
   }
   override buildRequestHeaders(ir: IRRequest, apiKey: string): Record<string, string> {
     const base = super.buildRequestHeaders(ir, apiKey);

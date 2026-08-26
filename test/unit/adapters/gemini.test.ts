@@ -65,7 +65,7 @@ describe('GeminiAdapter.parseResponse', () => {
       ],
       modelVersion: 'gemini-1.5-pro',
       usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 3, totalTokenCount: 8 },
-    });
+    }, req());
     expect(r.choices[0]?.message.content[0]).toEqual({ type: 'text', text: 'hello' });
     expect(r.usage.promptTokens).toBe(5);
     expect(r.finishReason).toBe('stop');
@@ -80,7 +80,7 @@ describe('GeminiAdapter.parseResponse', () => {
           finishReason: 'STOP',
         },
       ],
-    });
+    }, req());
     const tu = r.choices[0]?.message.content[0];
     expect(tu?.type).toBe('tool_use');
     if (tu?.type === 'tool_use') {
@@ -95,7 +95,7 @@ describe('GeminiAdapter.parseStreamEvent', () => {
   it('extracts text and thought deltas', () => {
     const ev = a.parseStreamEvent({
       candidates: [{ content: { role: 'model', parts: [{ text: 'abc' }, { thought: 'def' }] } }],
-    });
+    }, req());
     expect(ev?.textDelta).toBe('abc');
     expect(ev?.thinkingDelta?.text).toBe('def');
   });

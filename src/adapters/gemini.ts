@@ -74,6 +74,7 @@ interface GeminiResponse {
 }
 
 export class GeminiAdapter implements ProviderAdapter {
+  readonly protocol = 'Gemini' as const;
   buildRequestBody(ir: IRRequest): ProviderRequestEnvelope {
     const system = collectSystemInstruction(ir.messages);
     const contents: GeminiContent[] = [];
@@ -125,7 +126,7 @@ export class GeminiAdapter implements ProviderAdapter {
     return `/v1beta/models/${encodeURIComponent(ir.model)}:generateContent`;
   }
 
-  parseResponse(raw: unknown): IRResponse {
+  parseResponse(raw: unknown, _request: IRRequest): IRResponse {
     const r = raw as GeminiResponse;
     if (!r || !Array.isArray(r.candidates) || r.candidates.length === 0) {
       throw new Error('Gemini response missing candidates[]');
@@ -150,7 +151,7 @@ export class GeminiAdapter implements ProviderAdapter {
     };
   }
 
-  parseStreamEvent(raw: unknown): IRStreamEvent | null {
+  parseStreamEvent(raw: unknown, _request: IRRequest): IRStreamEvent | null {
     if (typeof raw !== 'object' || raw === null) return null;
     const obj = raw as Record<string, unknown>;
     const candidates = Array.isArray(obj['candidates']) ? (obj['candidates'] as Array<Record<string, unknown>>) : [];

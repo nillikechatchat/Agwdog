@@ -61,7 +61,7 @@ describe('AnthropicAdapter.parseResponse', () => {
       id: 'msg_1', model: 'claude-3-5-sonnet',
       content: [{ type: 'text', text: 'hi' }],
       stop_reason: 'end_turn', usage: { input_tokens: 3, output_tokens: 2 },
-    });
+    }, req());
     expect(r.choices[0]?.message.content[0]).toEqual({ type: 'text', text: 'hi' });
     expect(r.usage.promptTokens).toBe(3);
     expect(r.finishReason).toBe('stop');
@@ -75,7 +75,7 @@ describe('AnthropicAdapter.parseResponse', () => {
         { type: 'tool_use', id: 't1', name: 'f', input: { x: 1 } },
       ],
       stop_reason: 'tool_use', usage: { input_tokens: 5, output_tokens: 5, cache_read_input_tokens: 2 },
-    });
+    }, req());
     const content = r.choices[0]?.message.content;
     expect(content?.[0]?.type).toBe('thinking');
     expect(content?.[1]?.type).toBe('tool_use');
@@ -88,23 +88,23 @@ describe('AnthropicAdapter.parseStreamEvent', () => {
   const a = new AnthropicAdapter();
 
   it('handles content_block_delta text', () => {
-    const ev = a.parseStreamEvent({ type: 'content_block_delta', delta: { delta: { text: 'hi' } } });
+    const ev = a.parseStreamEvent({ type: 'content_block_delta', delta: { delta: { text: 'hi' } } }, req());
     expect(ev?.textDelta).toBe('hi');
   });
 
   it('handles content_block_delta thinking', () => {
-    const ev = a.parseStreamEvent({ type: 'content_block_delta', delta: { delta: { thinking: 'think' } } });
+    const ev = a.parseStreamEvent({ type: 'content_block_delta', delta: { delta: { thinking: 'think' } } }, req());
     expect(ev?.thinkingDelta?.text).toBe('think');
   });
 
   it('handles message_start with usage', () => {
-    const ev = a.parseStreamEvent({ type: 'message_start', message: { id: 'msg_x', usage: { input_tokens: 4, output_tokens: 1 } } });
+    const ev = a.parseStreamEvent({ type: 'message_start', message: { id: 'msg_x', usage: { input_tokens: 4, output_tokens: 1 } } }, req());
     expect(ev?.responseId).toBe('msg_x');
     expect(ev?.usageDelta?.promptTokens).toBe(4);
   });
 
   it('handles message_delta stop_reason', () => {
-    const ev = a.parseStreamEvent({ type: 'message_delta', stop_reason: 'end_turn' });
+    const ev = a.parseStreamEvent({ type: 'message_delta', stop_reason: 'end_turn' }, req());
     expect(ev?.finishReason).toBe('stop');
   });
 });

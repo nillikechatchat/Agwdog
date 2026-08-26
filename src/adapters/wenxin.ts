@@ -13,7 +13,8 @@ import type { IRMessage } from '../ir/types.js';
  */
 export class WenxinAdapter extends OpenAICompatibleAdapter {
   constructor(options: OpenAICompatibleOptions = {}) {
-    super(options);
+    super({ ...options });
+    (this as { protocol: 'Wenxin' }).protocol = 'Wenxin';
   }
   override endpointPath(_ir: IRRequest): string {
     return '/v2/chat/completions';

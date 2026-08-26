@@ -69,6 +69,10 @@ interface OpenAIResponse {
 
 /** Adapter for the OpenAI Chat Completions API. */
 export class OpenAIAdapter implements ProviderAdapter {
+  readonly protocol: 'OpenAI' | 'OpenAI-Compatible' | 'Doubao' | 'Wenxin';
+  constructor(protocol: 'OpenAI' | 'OpenAI-Compatible' | 'Doubao' | 'Wenxin' = 'OpenAI') {
+    this.protocol = protocol;
+  }
   buildRequestBody(ir: IRRequest): ProviderRequestEnvelope {
     const body: OpenAIRequestBody = {
       model: ir.model,
@@ -105,7 +109,7 @@ export class OpenAIAdapter implements ProviderAdapter {
     return '/v1/chat/completions';
   }
 
-  parseResponse(raw: unknown): IRResponse {
+  parseResponse(raw: unknown, _request: IRRequest): IRResponse {
     const r = raw as OpenAIResponse;
     if (!r || !Array.isArray(r.choices)) {
       throw new Error('OpenAI response missing choices[]');
@@ -131,7 +135,7 @@ export class OpenAIAdapter implements ProviderAdapter {
     };
   }
 
-  parseStreamEvent(raw: unknown): IRStreamEvent | null {
+  parseStreamEvent(raw: unknown, _request: IRRequest): IRStreamEvent | null {
     // The OpenAI SSE payload is a JSON object per `data:` line.
     if (typeof raw !== 'object' || raw === null) return null;
     const obj = raw as Record<string, unknown>;

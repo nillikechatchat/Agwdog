@@ -1,5 +1,7 @@
 import type { IRRequest, IRResponse, IRStreamEvent } from '../ir/types.js';
 
+export type ProviderProtocol = 'OpenAI' | 'OpenAI-Compatible' | 'Anthropic' | 'Gemini' | 'Doubao' | 'Wenxin';
+
 /**
  * A Provider Adapter converts between the gateway's internal IR and one
  * specific upstream API format. The interface is intentionally minimal so the
@@ -7,6 +9,9 @@ import type { IRRequest, IRResponse, IRStreamEvent } from '../ir/types.js';
  * Doubao, Wenxin) can share most of their logic through composition.
  */
 export interface ProviderAdapter {
+  /** Stable identifier used by the circuit-breaker and rate-limiter. */
+  protocol: ProviderProtocol;
+
   /**
    * Build the JSON-serializable request body for the upstream HTTP call.
    * Streaming requests still get a JSON body (the OpenAI/Anthropic protocol
@@ -28,16 +33,18 @@ export interface ProviderAdapter {
 
   /**
    * Parse a non-streaming JSON response into an IRResponse.
-   * Throws AdapterError when the body is malformed.
+   * The `request` is passed in for adapters that need to reconcile response
+   * shape with what was sent (e.g. tool_call id echo). Throws AdapterError
+   * when the body is malformed.
    */
-  parseResponse(raw: unknown): IRResponse;
+  parseResponse(raw: unknown, request: IRRequest): IRResponse;
 
   /**
    * Parse a single SSE event (already JSON-decoded from the `data:` line) into
    * an IRStreamEvent. Returns null for events that carry no payload (e.g. the
    * terminal `[DONE]` sentinel, heartbeat comments, etc.).
    */
-  parseStreamEvent(raw: unknown): IRStreamEvent | null;
+  parseStreamEvent(raw: unknown, request: IRRequest): IRStreamEvent | null;
 }
 
 export interface ProviderRequestEnvelope {

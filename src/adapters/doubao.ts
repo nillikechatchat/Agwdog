@@ -8,7 +8,8 @@ import { OpenAICompatibleAdapter, type OpenAICompatibleOptions } from './openai-
  */
 export class DoubaoAdapter extends OpenAICompatibleAdapter {
   constructor(options: OpenAICompatibleOptions = {}) {
-    super(options);
+    super({ ...options });
+    (this as { protocol: 'Doubao' }).protocol = 'Doubao';
   }
   // baseUrl/host is resolved at the HTTP client layer from the Provider row;
   // this adapter only contributes path + auth defaults.
