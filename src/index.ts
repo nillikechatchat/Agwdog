@@ -66,3 +66,26 @@ export {
   toolResultMsg,
   type FingerprintInput,
 } from './ir/normalize.js';
+
+export {
+  startServer,
+  resolveRoute,
+  startSseResponse,
+  BodyTooLargeError,
+  InvalidJsonError,
+  type HttpMethod,
+  type Route,
+  type RouteMatch,
+  type DispatchFn,
+  type DispatchInput,
+  type GatewayContext,
+  type ServerOptions,
+} from './server/http.js';
+export { match, ROUTE_TABLE } from './server/router.js';
+export {
+  createInflightTracker,
+  installShutdown,
+  type InflightTracker,
+  type ShutdownHandle,
+  type LifecycleOptions,
+} from './server/lifecycle.js';

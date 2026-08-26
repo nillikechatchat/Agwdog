@@ -72,16 +72,16 @@
 
 ---
 
-- [ ] 4. HTTP Server 与路由分发（Req 1、8，design §1）
-  - [ ] 4.1 路由器 `src/server/router.ts`
-    - 原生 `http` 模块；URL pattern 匹配 `/v1/chat/completions`、`/v1/responses`、`/v1/responses/:id`、`/v1/messages`、`/v1/messages/count_tokens`、`/v1beta/models/:model\\:action`、`/v1/models`、`/v1beta/models`、`/admin`、`/admin/api/*`、`/metrics`、`/healthz`
+- [x] 4. HTTP Server 与路由分发（Req 1、8，design §1）
+  - [x] 4.1 路由器 `src/server/router.ts`
+    - 原生 `http` 模块；URL pattern 匹配 `/v1/chat/completions`、`/v1/responses`、`/v1/responses/:id`、`/v1/messages`、`/v1/messages/count_tokens`、`/v1beta/models/:modelAndAction`、`/v1/models`、`/v1beta/models`、`/admin`、`/admin/api/*`、`/metrics`、`/healthz`
     - 流式响应：`Content-Type: text/event-stream` + `Cache-Control: no-cache` + chunked
-  - [ ] 4.2 请求解析与限流中间件 `src/server/middleware/parse.ts`
+  - [x] 4.2 请求解析与限流中间件 `src/server/middleware/parse.ts`
     - JSON body 解析（1MB 上限，可配置）
     - 解析请求体后挂 `req.gateway = { key, routedProviderId, ... }`
-  - [ ] 4.3 优雅关停 `src/server/lifecycle.ts`
+  - [x] 4.3 优雅关停 `src/server/lifecycle.ts`
     - SIGTERM/SIGINT 钩子：拒绝新连接、等待 30s 进行中请求、关闭 SQLite、退出码 0
-  - [ ] 4.4 单测 `test/unit/server/`
+  - [x] 4.4 单测 `test/unit/server/`
     - 路由匹配覆盖所有 Client Protocol 路径
     - 流式响应 chunk 顺序与连接断开时 error + [DONE]
 
