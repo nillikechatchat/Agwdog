@@ -123,3 +123,16 @@ export {
   type AuthRequestInput,
   type AuthRequestDeps,
 } from './auth/pipeline.js';
+
+export { CacheRepo } from './storage/repos/cache.js';
+export type { NewCacheEntryInput, CacheLookupResult } from './storage/repos/cache.js';
+export {
+  ExactCache,
+  type CachePolicy,
+  type CacheWriteInput,
+  type CacheLookupInput,
+  type CacheHit,
+  type CacheMiss,
+  type CacheLookupOutcome,
+} from './cache/exact.js';
+export { writeCacheHit } from './cache/serialize.js';

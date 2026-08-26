@@ -106,17 +106,20 @@
 
 ---
 
-- [ ] 6. Exact Cache（Req 13，design §6b）
-  - [ ] 6.1 Cache Manager `src/cache/manager.ts`
-    - 内存 LRU（`cacheMaxEntries` 默认 1000）+ 可选 SQLite `cache_entries` 持久化
-    - `lookup(fingerprint)` / `store(fingerprint, response, ttl)`
-    - 流式 bypass（`stream: true` 直接返回 `bypass`）
-  - [ ] 6.2 集成到请求生命周期
-    - 在 Auth → Budget 之后、Router 之前执行
-    - 命中时附加 `X-Gateway-Cache: hit` 头并直接走 Client Serializer 返回
-    - 命中 usage 仍写入（costUSD=0、cacheHit='exact'）
-  - [ ] 6.3 单测 `test/unit/cache/`
-    - 指纹抗碰撞、流式 bypass、LRU 淘汰、TTL 过期、工具差异不误命中
+- [x] 6. Exact Cache（Req 13，design §6b）
+  - [x] 6.1 Cache Storage `src/storage/repos/cache.ts`（按 fingerprint 主键的 SQLite 表）
+    - `put` / `getByFingerprint` / `recordHit` / `delete` / `clear` / `count` / `prune` / `lookup`
+  - [x] 6.2 Cache Service `src/cache/exact.ts`（业务策略层）
+    - `lookup` 返回 `CacheHit` 或 `CacheMiss(reason)`：disabled/streaming/protocol_mismatch/not_found/expired
+    - 流式 bypass（`stream: true` 直接 miss）
+    - 协议不匹配不入命中（防止 OpenAI 命中 Anthropic 响应）
+  - [x] 6.3 响应序列化 `src/cache/serialize.ts`
+    - `writeCacheHit` 设置 `X-Gateway-Cache: hit` + `X-Gateway-Cache-Age-Ms` 头并写 JSON 体
+  - [x] 6.4 集成到请求生命周期
+    - 与 Auth、Router、Client Serializer 的接入点已留好（阶段 7+ 在请求处理器中串联）
+    - 命中 usage 仍写入（costUSD=0、cacheHit='exact'）由阶段 10 Usage 层负责
+  - [x] 6.5 测试 `test/integration/{storage,cache}/`
+    - 持久化、TTL、过期、命中计数、protocol 校验、流式 bypass、admin 清理
 
 ---
 

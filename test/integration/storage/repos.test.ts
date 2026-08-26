@@ -280,38 +280,43 @@ describe('UsageRepo', () => {
 });
 
 describe('CacheRepo', () => {
-  it('put + get returns the entry while not expired', () => {
+  it('put + getByFingerprint returns the entry while not expired', () => {
     const fp = 'abc123';
+    const now = Date.now();
     repos!.cache.put({
       fingerprint: fp,
       clientProtocol: 'OpenAI-Chat',
       model: 'gpt-x',
       responseJson: '{"ok":true}',
-      expiresAt: Date.now() + 60_000,
-    });
-    expect(repos!.cache.get(fp)?.response_json).toBe('{"ok":true}');
-    repos!.cache.recordHit(fp);
-    expect(repos!.cache.get(fp)?.hit_count).toBe(1);
+      ttlSeconds: 60,
+    }, now);
+    const got = repos!.cache.getByFingerprint(fp, now + 1000);
+    expect(got?.response_json).toBe('{"ok":true}');
+    repos!.cache.recordHit(fp, now + 1000);
+    const after = repos!.cache.getByFingerprint(fp, now + 1001);
+    expect(after?.hit_count).toBe(1);
   });
 
-  it('returns undefined for expired entries', () => {
+  it('returns null for expired entries', () => {
     const fp = 'expired';
+    const now = Date.now();
     repos!.cache.put({
       fingerprint: fp,
       clientProtocol: 'OpenAI-Chat',
       model: 'gpt-x',
       responseJson: '{}',
-      expiresAt: Date.now() - 1,
-    });
-    expect(repos!.cache.get(fp)).toBeUndefined();
+      ttlSeconds: 1,
+    }, now - 5000);
+    expect(repos!.cache.getByFingerprint(fp, now)).toBeNull();
   });
 
-  it('clearAll wipes the cache and reports the count', () => {
+  it('clear wipes the cache and reports the count', () => {
+    const now = Date.now();
     for (const fp of ['a', 'b', 'c']) {
-      repos!.cache.put({ fingerprint: fp, clientProtocol: 'OpenAI-Chat', model: 'm', responseJson: '{}', expiresAt: Date.now() + 1000 });
+      repos!.cache.put({ fingerprint: fp, clientProtocol: 'OpenAI-Chat', model: 'm', responseJson: '{}', ttlSeconds: 60 }, now);
     }
-    expect(repos!.cache.clearAll()).toBe(3);
-    expect(repos!.cache.stats().total).toBe(0);
+    expect(repos!.cache.clear()).toBe(3);
+    expect(repos!.cache.count(now)).toBe(0);
   });
 });
 
