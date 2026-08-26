@@ -3,229 +3,479 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ai-gateway · admin</title>
+  <title>AI Gateway · Admin</title>
   <style>
     :root {
-      --bg: #0d1117;
-      --panel: #161b22;
-      --panel-2: #1c2129;
-      --border: #30363d;
-      --border-2: #444c56;
-      --text: #e6edf3;
-      --text-dim: #8b949e;
-      --accent: #58a6ff;
-      --accent-2: #1f6feb;
-      --ok: #3fb950;
-      --warn: #d29922;
-      --err: #f85149;
-      --code-bg: #0a0d12;
+      --sidebar-w: 220px;
+      --topbar-h: 52px;
+      --bg: #0f172a;
+      --sidebar-bg: #1e293b;
+      --sidebar-hover: #334155;
+      --sidebar-active: #3b82f6;
+      --panel: #1e293b;
+      --panel-2: #253043;
+      --border: #334155;
+      --border-2: #475569;
+      --text: #f1f5f9;
+      --text-dim: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --err: #ef4444;
+      --card-radius: 10px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
+      display: flex;
+      min-height: 100vh;
     }
-    header {
+
+    /* Sidebar */
+    aside {
+      width: var(--sidebar-w);
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+    }
+    aside .brand {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 10px 20px;
-      border-bottom: 1px solid var(--border);
-      background: var(--panel);
-      position: sticky; top: 0; z-index: 10;
+      gap: 10px;
     }
-    header h1 {
-      margin: 0;
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 0.2px;
+    aside .brand .logo {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 14px;
     }
-    header .version { color: var(--text-dim); font-size: 12px; }
-    nav { display: flex; gap: 4px; margin-left: 24px; }
-    nav button {
+    aside .brand .title {
+      font-size: 15px; font-weight: 600;
+    }
+    aside .brand .version {
+      font-size: 11px; color: var(--text-muted);
+    }
+    aside nav {
+      flex: 1; padding: 12px 10px;
+      overflow-y: auto;
+    }
+    aside nav .section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 8px 10px 4px;
+    }
+    aside nav button {
+      width: 100%;
       background: transparent;
       color: var(--text-dim);
       border: 0;
-      padding: 6px 12px;
-      border-radius: 6px;
+      padding: 9px 12px;
+      border-radius: 8px;
       cursor: pointer;
       font: inherit;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.15s, color 0.15s;
     }
-    nav button:hover { color: var(--text); background: var(--panel-2); }
-    nav button.active { color: var(--text); background: var(--panel-2); border: 1px solid var(--border); }
-    .spacer { flex: 1; }
-    main { padding: 20px; max-width: 1280px; margin: 0 auto; }
+    aside nav button:hover { background: var(--sidebar-hover); color: var(--text); }
+    aside nav button.active { background: var(--sidebar-active); color: white; }
+    aside nav button .icon { width: 18px; text-align: center; flex-shrink: 0; }
+    aside .sidebar-footer {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Main */
+    .main-wrap {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* Topbar */
+    header {
+      height: var(--topbar-h);
+      background: var(--sidebar-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 90;
+    }
+    header .page-title { font-size: 15px; font-weight: 600; flex: 1; }
+    header .status-pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    header .status-dot {
+      width: 8px; height: 8px;
+      background: var(--ok);
+      border-radius: 50%;
+    }
+    header button {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 7px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 500;
+    }
+    header button:hover { background: var(--accent-hover); }
+    header button.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    header button.ghost:hover { background: var(--panel-2); color: var(--text); }
+
+    /* Content */
+    main {
+      flex: 1;
+      padding: 24px;
+      max-width: 1400px;
+      width: 100%;
+    }
+
+    /* Cards */
     .grid { display: grid; gap: 16px; }
     .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
     .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
     .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
+      border-radius: var(--card-radius);
+      padding: 18px;
     }
-    .card h2 { margin: 0 0 12px; font-size: 14px; color: var(--text-dim); font-weight: 500; }
-    .stat { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .stat .sub { display: block; font-size: 12px; color: var(--text-dim); font-weight: 400; margin-top: 4px; }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .card-header h2 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .stat { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .stat .sub { display: block; font-size: 12px; color: var(--text-muted); font-weight: 400; margin-top: 6px; }
+
+    /* Table */
     table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
-    th { color: var(--text-dim); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
     tr:hover td { background: var(--panel-2); }
+
+    /* Pills */
     .pill {
-      display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px;
-      background: var(--panel-2); border: 1px solid var(--border);
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
     }
-    .pill.ok { color: var(--ok); border-color: rgba(63,185,80,0.4); }
-    .pill.warn { color: var(--warn); border-color: rgba(210,153,34,0.4); }
-    .pill.err { color: var(--err); border-color: rgba(248,81,73,0.4); }
+    .pill.ok { color: var(--ok); border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.1); }
+    .pill.warn { color: var(--warn); border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); }
+    .pill.err { color: var(--err); border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); }
+    .pill.info { color: var(--accent); border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.1); }
+
+    /* Buttons */
     button.action {
-      background: var(--accent-2);
-      color: white; border: 0; padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit;
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 500;
     }
-    button.action:hover { background: var(--accent); }
+    button.action:hover { background: var(--accent-hover); }
     button.action.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
-    button.action.danger { background: #6e1620; }
-    button.action.danger:hover { background: #8a1c2a; }
-    input, select {
-      background: var(--code-bg); color: var(--text); border: 1px solid var(--border);
-      padding: 6px 10px; border-radius: 6px; font: inherit; font-family: ui-monospace, monospace;
+    button.action.ghost:hover { background: var(--panel-2); color: var(--text); }
+    button.action.danger { background: rgba(239,68,68,0.15); color: var(--err); border: 1px solid rgba(239,68,68,0.3); }
+    button.action.danger:hover { background: rgba(239,68,68,0.25); }
+    button.action.sm { padding: 5px 10px; font-size: 12px; }
+
+    /* Forms */
+    input, select, textarea {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font: inherit;
+      width: 100%;
     }
-    input:focus, select:focus { outline: 0; border-color: var(--accent); }
-    form.inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    label { color: var(--text-dim); font-size: 12px; }
-    .toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
-    .empty { color: var(--text-dim); padding: 20px; text-align: center; }
-    pre { background: var(--code-bg); padding: 12px; border-radius: 6px; overflow: auto; }
-    code { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
+    input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--accent); }
+    label { color: var(--text-dim); font-size: 12px; display: block; margin-bottom: 4px; }
+    form.inline { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    form.inline > div { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 160px; }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
     .toolbar .spacer { flex: 1; }
-    .view { display: none; }
-    .view.active { display: block; }
+
+    /* Empty state */
+    .empty {
+      color: var(--text-muted);
+      padding: 40px;
+      text-align: center;
+      background: var(--panel);
+      border-radius: var(--card-radius);
+      border: 1px dashed var(--border-2);
+    }
+
+    /* Code */
+    pre { background: var(--bg); padding: 12px; border-radius: 8px; overflow: auto; font-size: 12px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--text-dim); }
+
+    /* Dialog */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200;
+    }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 560px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal h3 { margin: 0 0 16px; font-size: 16px; }
+    .modal .form-row { margin-bottom: 12px; }
+    .modal .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+    /* Series chart */
     .series {
-      display: flex; align-items: flex-end; gap: 2px; height: 80px; padding: 8px 0;
+      display: flex; align-items: flex-end; gap: 3px; height: 100px; padding: 10px 0;
     }
     .series .bar {
-      flex: 1; background: var(--accent-2); opacity: 0.7; min-height: 1px;
-      border-radius: 2px 2px 0 0; transition: opacity 0.2s;
+      flex: 1; background: var(--accent); opacity: 0.7; min-height: 2px;
+      border-radius: 3px 3px 0 0; transition: opacity 0.2s;
     }
     .series .bar:hover { opacity: 1; }
     .series .bar[data-empty="1"] { background: var(--border); opacity: 0.3; }
+
+    /* Toast */
     .toast {
-      position: fixed; bottom: 20px; right: 20px; padding: 10px 16px;
-      background: var(--panel-2); border: 1px solid var(--border);
-      border-radius: 6px; z-index: 100; max-width: 360px;
+      position: fixed; bottom: 24px; right: 24px;
+      padding: 12px 18px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      z-index: 300;
+      max-width: 380px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     }
     .toast.err { border-color: var(--err); }
     .toast.ok { border-color: var(--ok); }
+
+    /* View visibility */
+    .view { display: none; }
+    .view.active { display: block; }
   </style>
 </head>
 <body>
-<header>
-  <h1>ai-gateway</h1>
-  <span class="version" id="version">v0.1.0</span>
-  <nav id="nav"></nav>
-  <span class="spacer"></span>
-  <button class="action ghost" id="refresh">Refresh</button>
-</header>
 
-<main>
-  <section class="view" data-view="dashboard">
-    <div class="grid cols-4" id="dashCards"></div>
-    <div class="card" style="margin-top:16px">
-      <h2>Last 7 days · requests</h2>
-      <div class="series" id="series"></div>
+<aside>
+  <div class="brand">
+    <div class="logo">AG</div>
+    <div>
+      <div class="title">AI Gateway</div>
+      <div class="version">v0.1.0</div>
     </div>
-  </section>
+  </div>
+  <nav id="sidebarNav">
+    <div class="section-label">Overview</div>
+    <button class="active" data-view="dashboard"><span class="icon">📊</span> Dashboard</button>
+    <button data-view="availability"><span class="icon">🔍</span> Availability</button>
+    <div class="section-label">Configuration</div>
+    <button data-view="providers"><span class="icon">🔌</span> Providers</button>
+    <button data-view="vmodels"><span class="icon">🎯</span> Virtual Models</button>
+    <button data-view="keys"><span class="icon">🔑</span> API Keys</button>
+    <div class="section-label">Monitoring</div>
+    <button data-view="usage"><span class="icon">📈</span> Usage Logs</button>
+    <button data-view="settings"><span class="icon">⚙️</span> Settings</button>
+  </nav>
+  <div class="sidebar-footer">
+    Local-first AI Gateway<br>
+    No external dependencies
+  </div>
+</aside>
 
-  <section class="view" data-view="providers">
-    <div class="toolbar">
-      <h2 style="margin:0">Providers</h2>
-      <span class="spacer"></span>
-      <span class="pill" id="providerCount">0</span>
+<div class="main-wrap">
+  <header>
+    <div class="page-title" id="pageTitle">Dashboard</div>
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      <span>Running</span>
     </div>
-    <div id="providerList"></div>
-  </section>
+    <span class="spacer"></span>
+    <button class="ghost" id="refreshBtn">Refresh</button>
+  </header>
 
-  <section class="view" data-view="vmodels">
-    <div class="toolbar">
-      <h2 style="margin:0">Virtual models</h2>
-      <span class="spacer"></span>
-      <span class="pill" id="vmodelCount">0</span>
-    </div>
-    <div id="vmodelList"></div>
-  </section>
-
-  <section class="view" data-view="keys">
-    <div class="toolbar">
-      <h2 style="margin:0">API keys</h2>
-      <span class="spacer"></span>
-      <button class="action" id="newKey">+ New key</button>
-    </div>
-    <div id="keyList"></div>
-    <div id="newKeyDialog" style="display:none" class="card" style="margin-top:16px">
-      <h2>Create key</h2>
-      <form class="inline" id="keyForm">
-        <label>Name <input name="name" required placeholder="prod-app"></label>
-        <label>Daily $ <input name="budgetDailyUsd" type="number" step="0.01" placeholder="100"></label>
-        <label>Monthly $ <input name="budgetMonthlyUsd" type="number" step="0.01"></label>
-        <label>Total $ <input name="budgetTotalUsd" type="number" step="0.01"></label>
-        <button type="submit" class="action">Create</button>
-        <button type="button" class="action ghost" id="cancelKey">Cancel</button>
-      </form>
-      <div id="newKeyResult" style="margin-top:12px; display:none">
-        <p style="color:var(--ok)">Token (copy now — shown once):</p>
-        <pre><code id="newKeyToken"></code></pre>
+  <main>
+    <!-- Dashboard -->
+    <section class="view active" data-view="dashboard">
+      <div class="grid cols-4" id="dashCards"></div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-header">
+          <h2>Last 7 Days · Request Volume</h2>
+        </div>
+        <div class="series" id="series"></div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section class="view" data-view="usage">
-    <div class="toolbar">
-      <h2 style="margin:0">Recent requests</h2>
-      <span class="spacer"></span>
-      <label>Since
-        <select id="usageRange">
-          <option value="3600000">last hour</option>
-          <option value="86400000" selected>last day</option>
-          <option value="604800000">last 7d</option>
-        </select>
-      </label>
-    </div>
-    <div class="card" style="padding:0; overflow:auto">
-      <table>
-        <thead><tr>
-          <th>Time</th><th>Model</th><th>Protocol</th>
-          <th>Tokens</th><th>Cost</th><th>Cache</th>
-          <th>Status</th><th>Latency</th>
-        </tr></thead>
-        <tbody id="usageRows"></tbody>
-      </table>
-    </div>
-  </section>
+    <!-- Availability -->
+    <section class="view" data-view="availability">
+      <div class="toolbar">
+        <h2 style="margin:0">Provider Availability</h2>
+        <span class="spacer"></span>
+        <button class="action ghost sm" id="refreshAvail">Refresh</button>
+      </div>
+      <div class="card" style="padding:0; overflow:auto">
+        <table>
+          <thead><tr><th>Provider</th><th>Model</th><th>Status</th><th>P50 Latency</th><th>P95 Latency</th></tr></thead>
+          <tbody id="availRows"></tbody>
+        </table>
+      </div>
+    </section>
 
-  <section class="view" data-view="settings">
-    <div class="grid cols-2">
-      <div class="card">
-        <h2>Cache</h2>
-        <p>Live entries: <span class="stat" id="cacheSize">-</span></p>
-        <button class="action danger" id="clearCache">Clear cache</button>
+    <!-- Providers -->
+    <section class="view" data-view="providers">
+      <div class="toolbar">
+        <h2 style="margin:0">Providers</h2>
+        <span class="spacer"></span>
+        <span class="pill" id="providerCount">0</span>
+        <button class="action sm" id="addProviderBtn">+ Add Provider</button>
       </div>
-      <div class="card">
-        <h2>Metrics</h2>
-        <p>Prometheus endpoint (use the gateway's own <code>/metrics</code> if behind a proxy, or the dedicated admin one):</p>
-        <pre><code>GET /admin/metrics
-GET /metrics</code></pre>
+      <div id="providerList"></div>
+    </section>
+
+    <!-- Virtual Models -->
+    <section class="view" data-view="vmodels">
+      <div class="toolbar">
+        <h2 style="margin:0">Virtual Models</h2>
+        <span class="spacer"></span>
+        <span class="pill" id="vmodelCount">0</span>
+        <button class="action sm" id="addVModelBtn">+ Add Virtual Model</button>
       </div>
-      <div class="card">
-        <h2>About</h2>
-        <p>ai-gateway · local-first AI API gateway. SQLite, 0 external services.</p>
-        <p style="color:var(--text-dim)">Press <kbd>R</kbd> to refresh current view.</p>
+      <div id="vmodelList"></div>
+    </section>
+
+    <!-- API Keys -->
+    <section class="view" data-view="keys">
+      <div class="toolbar">
+        <h2 style="margin:0">API Keys</h2>
+        <span class="spacer"></span>
+        <span class="pill" id="keyCount">0</span>
+        <button class="action sm" id="newKeyBtn">+ New Key</button>
       </div>
-    </div>
-  </section>
-</main>
+      <div id="keyList"></div>
+    </section>
+
+    <!-- Usage -->
+    <section class="view" data-view="usage">
+      <div class="toolbar">
+        <h2 style="margin:0">Usage Logs</h2>
+        <span class="spacer"></span>
+        <label style="margin:0">Time range
+          <select id="usageRange" style="width:auto;margin-top:4px">
+            <option value="3600000">Last hour</option>
+            <option value="86400000" selected>Last day</option>
+            <option value="604800000">Last 7 days</option>
+          </select>
+        </label>
+        <button class="action ghost sm" id="refreshUsage">Refresh</button>
+      </div>
+      <div class="card" style="padding:0; overflow:auto">
+        <table>
+          <thead><tr><th>Time</th><th>Virtual Model</th><th>Upstream</th><th>Protocol</th><th>Tokens</th><th>Cost</th><th>Cache</th><th>Status</th><th>Latency</th></tr></thead>
+          <tbody id="usageRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section class="view" data-view="settings">
+      <div class="grid cols-2">
+        <div class="card">
+          <div class="card-header"><h2>Cache</h2></div>
+          <p>Live cache entries: <span class="stat" id="cacheSize" style="font-size:24px">-</span></p>
+          <div style="margin-top:12px">
+            <button class="action danger" id="clearCacheBtn">Clear Cache</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>Metrics</h2></div>
+          <p>Prometheus endpoint:</p>
+          <pre><code>GET /admin/metrics</code></pre>
+          <p style="margin-top:12px">OpenTelemetry tracing enabled via <code>OTEL_EXPORTER_OTLP_ENDPOINT</code></p>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>System</h2></div>
+          <p>Version: <strong>v0.1.0</strong></p>
+          <p>Data directory: <code>./data</code></p>
+          <p>Database: SQLite (WAL mode)</p>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>Keyboard Shortcuts</h2></div>
+          <p><kbd>R</kbd> — Refresh current view</p>
+          <p><kbd>1</kbd>-<kbd>7</kbd> — Navigate to section</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Modals -->
+<div id="modalOverlay" class="modal-overlay" style="display:none">
+  <div class="modal" id="modalContent"></div>
+</div>
 
 <div id="toastContainer"></div>
 
@@ -233,7 +483,8 @@ GET /metrics</code></pre>
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
-  const fmt = {
+
+  const FORMATS = {
     int: n => n == null ? '-' : Number(n).toLocaleString('en-US'),
     usd: n => n == null ? '-' : '$' + Number(n).toFixed(4),
     pct: n => (n * 100).toFixed(1) + '%',
@@ -249,44 +500,46 @@ GET /metrics</code></pre>
 
   const VIEWS = [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'availability', label: 'Availability' },
     { id: 'providers', label: 'Providers' },
-    { id: 'vmodels',   label: 'Virtual models' },
-    { id: 'keys',      label: 'Keys' },
-    { id: 'usage',     label: 'Usage' },
-    { id: 'settings',  label: 'Settings' },
+    { id: 'vmodels', label: 'Virtual Models' },
+    { id: 'keys', label: 'API Keys' },
+    { id: 'usage', label: 'Usage Logs' },
+    { id: 'settings', label: 'Settings' },
   ];
 
+  // Navigation
   function setView(id) {
     $$('.view').forEach(v => v.classList.toggle('active', v.dataset.view === id));
-    $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === id));
+    $$('#sidebarNav button').forEach(b => b.classList.toggle('active', b.dataset.view === id));
+    const info = VIEWS.find(v => v.id === id);
+    $('#pageTitle').textContent = info ? info.label : 'Dashboard';
     if (location.hash !== '#' + id) location.hash = id;
     loadView(id);
   }
+
   function currentView() {
     const h = location.hash.replace('#', '');
     return VIEWS.some(v => v.id === h) ? h : 'dashboard';
   }
 
-  // nav
-  const nav = $('#nav');
-  for (const v of VIEWS) {
-    const b = document.createElement('button');
-    b.textContent = v.label;
-    b.dataset.view = v.id;
-    b.addEventListener('click', () => setView(v.id));
-    nav.appendChild(b);
-  }
-  setView(currentView());
-  window.addEventListener('hashchange', () => setView(currentView()));
+  $('#sidebarNav').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-view]');
+    if (btn) setView(btn.dataset.view);
+  });
 
-  $('#refresh').addEventListener('click', () => loadView(currentView()));
+  $('#refreshBtn').addEventListener('click', () => loadView(currentView()));
   document.addEventListener('keydown', e => {
-    if (e.key === 'r' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT') {
+    if (e.key === 'r' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
       loadView(currentView());
+    }
+    const num = parseInt(e.key);
+    if (num >= 1 && num <= VIEWS.length) {
+      setView(VIEWS[num - 1].id);
     }
   });
 
-  // ---- API client ----
+  // API
   async function api(path, opts = {}) {
     const res = await fetch('/admin/api' + path, {
       method: opts.method || 'GET',
@@ -305,179 +558,543 @@ GET /metrics</code></pre>
     t.className = 'toast' + (kind ? ' ' + kind : '');
     t.textContent = msg;
     $('#toastContainer').appendChild(t);
-    setTimeout(() => t.remove(), 3000);
+    setTimeout(() => t.remove(), 3500);
   }
 
-  // ---- loaders ----
+  function escape(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // Modal
+  function openModal(html) {
+    $('#modalContent').innerHTML = html;
+    $('#modalOverlay').style.display = 'flex';
+  }
+  function closeModal() {
+    $('#modalOverlay').style.display = 'none';
+  }
+  $('#modalOverlay').addEventListener('click', e => {
+    if (e.target === $('#modalOverlay')) closeModal();
+  });
+
+  // ---- Dashboard ----
   async function loadDashboard() {
     const stats = await api('/stats');
-    const cards = [
-      { label: 'Requests (24h)', value: fmt.int(stats.today.requests) },
-      { label: 'Tokens (24h)',   value: fmt.int(stats.today.totalTokens) },
-      { label: 'Cost (24h)',     value: fmt.usd(stats.today.costUsd), sub: 'USD' },
-      { label: 'Cache hit rate', value: fmt.pct(stats.cacheHitRate), sub: 'last 7d' },
-    ];
-    $('#dashCards').innerHTML = cards.map(c => `
-      <div class="card"><h2>${c.label}</h2>
+    $('#dashCards').innerHTML = [
+      { label: 'Requests (24h)', value: FORMATS.int(stats.today.requests) },
+      { label: 'Tokens (24h)', value: FORMATS.int(stats.today.totalTokens) },
+      { label: 'Cost (24h)', value: FORMATS.usd(stats.today.costUsd), sub: 'USD' },
+      { label: 'Cache hit rate', value: FORMATS.pct(stats.cacheHitRate), sub: 'last 7d' },
+    ].map(c => `
+      <div class="card">
+        <div class="card-header"><h2>${c.label}</h2></div>
         <div class="stat">${c.value}<span class="sub">${c.sub || ''}</span></div>
-      </div>`).join('') + `
-      <div class="card"><h2>Virtual models</h2>
-        <div class="stat">${fmt.int(stats.virtualModels)}</div>
-      </div>
-      <div class="card"><h2>Active API keys</h2>
-        <div class="stat">${fmt.int(stats.keys)}</div>
-      </div>
-      <div class="card"><h2>Cache entries</h2>
-        <div class="stat">${fmt.int(stats.cacheSize)}</div>
-      </div>
-      <div class="card"><h2>Server time</h2>
-        <div class="stat" style="font-size:18px">${fmt.time(stats.timestamp)}</div>
-      </div>`;
+      </div>`).join('') + [
+      { label: 'Virtual Models', value: stats.virtualModels },
+      { label: 'Active Keys', value: stats.keys },
+      { label: 'Cache Entries', value: stats.cacheSize },
+      { label: 'Server Time', value: '', sub: FORMATS.time(stats.timestamp) },
+    ].map(c => `
+      <div class="card">
+        <div class="card-header"><h2>${c.label}</h2></div>
+        <div class="stat" style="font-size:${c.value ? 32 : 18}px">${c.value || c.sub}</div>
+      </div>`).join('');
 
-    // series
     const max = Math.max(1, ...(stats.series7d || []).map(b => b.requestCount));
-    const series = $('#series');
-    series.innerHTML = (stats.series7d || []).map(b => {
-      const h = Math.round((b.requestCount / max) * 80);
-      return `<div class="bar" title="${b.bucket}: ${b.requestCount}" style="height:${Math.max(1, h)}px"></div>`;
-    }).join('') || '<div class="empty">no data</div>';
+    $('#series').innerHTML = (stats.series7d || []).map(b => {
+      const h = Math.round((b.requestCount / max) * 100);
+      return `<div class="bar" title="${b.bucket}: ${b.requestCount}" style="height:${Math.max(2, h)}px"></div>`;
+    }).join('') || '<div class="empty">No data</div>';
   }
 
+  // ---- Availability ----
+  async function loadAvailability() {
+    const r = await api('/availability');
+    if (!r.models || r.models.length === 0) {
+      $('#availRows').innerHTML = '<tr><td colspan="5" class="empty">No provider models configured</td></tr>';
+      return;
+    }
+    $('#availRows').innerHTML = r.models.map(m => {
+      const pillClass = m.availability === 'available' ? 'ok' : m.availability === 'degraded' ? 'warn' : 'err';
+      return `<tr>
+        <td><code>${escape(m.providerId)}</code></td>
+        <td><strong>${escape(m.modelId)}</strong></td>
+        <td><span class="pill ${pillClass}">${m.availability}</span></td>
+        <td>${m.latencyMsP50 != null ? m.latencyMsP50 + 'ms' : '-'}</td>
+        <td>${m.latencyMsP95 != null ? m.latencyMsP95 + 'ms' : '-'}</td>
+      </tr>`;
+    }).join('');
+  }
+  $('#refreshAvail').addEventListener('click', loadAvailability);
+
+  // ---- Providers ----
   async function loadProviders() {
     const r = await api('/providers');
     $('#providerCount').textContent = r.providers.length;
     if (r.providers.length === 0) {
-      $('#providerList').innerHTML = '<div class="card empty">No providers configured yet. Add one via the CLI: <code>ai-gateway provider add</code></div>';
+      $('#providerList').innerHTML = '<div class="empty">No providers configured. Click "+ Add Provider" to create one.</div>';
       return;
     }
     $('#providerList').innerHTML = r.providers.map(p => `
-      <div class="card" style="margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong>${escape(p.name)}</strong>
-          <span class="pill">${p.protocol}</span>
-          <span class="pill ${p.enabled ? 'ok' : 'err'}">${p.enabled ? 'enabled' : 'disabled'}</span>
-          <code style="color:var(--text-dim)">${escape(p.baseUrl || '')}</code>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header">
+          <div style="display:flex;align-items:center;gap:10px">
+            <strong>${escape(p.name)}</strong>
+            <span class="pill">${escape(p.protocol)}</span>
+            <span class="pill ${p.enabled ? 'ok' : 'err'}">${p.enabled ? 'Enabled' : 'Disabled'}</span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="action ghost sm edit-provider" data-id="${escape(p.id)}">Edit</button>
+            <button class="action danger sm delete-provider" data-id="${escape(p.id)}" data-name="${escape(p.name)}">Delete</button>
+          </div>
         </div>
-        ${p.models.length === 0 ? '<div class="empty">no models</div>' : `
+        <div style="margin-bottom:12px">
+          <code style="color:var(--text-muted)">${escape(p.baseUrl || '')}</code>
+        </div>
+        ${p.models.length === 0 ? '<div class="empty" style="padding:16px">No models. <a href="#" class="sync-models" data-id="${escape(p.id)}" style="color:var(--accent)">Sync models</a></div>' : `
         <table>
-          <thead><tr><th>Model</th><th>Display name</th><th>Availability</th><th>Ctx</th><th>Stream</th><th>Tools</th></tr></thead>
+          <thead><tr><th>Model ID</th><th>Display Name</th><th>Availability</th><th>Context</th><th>Stream</th><th>Tools</th></tr></thead>
           <tbody>${p.models.map(m => `
             <tr>
               <td><code>${escape(m.modelId)}</code></td>
               <td>${escape(m.displayName || '-')}</td>
               <td><span class="pill ${m.availability === 'available' ? 'ok' : m.availability === 'degraded' ? 'warn' : 'err'}">${m.availability}</span></td>
-              <td>${fmt.int(m.contextWindow)}</td>
-              <td>${m.supportsStream ? '✓' : '-'}</td>
-              <td>${m.supportsTools ? '✓' : '-'}</td>
+              <td>${m.contextWindow ? FORMATS.int(m.contextWindow) + ' tokens' : '-'}</td>
+              <td>${m.supportsStream ? '<span class="pill ok">Yes</span>' : '<span class="pill">No</span>'}</td>
+              <td>${m.supportsTools ? '<span class="pill ok">Yes</span>' : '<span class="pill">No</span>'}</td>
             </tr>`).join('')}</tbody>
         </table>`}
       </div>`).join('');
+
+    $$('button.delete-provider').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Delete provider "${btn.dataset.name}"?`)) return;
+        try {
+          await api('/providers/' + btn.dataset.id, { method: 'DELETE' });
+          toast('Provider deleted', 'ok');
+          loadProviders();
+        } catch (e) { toast(e.message, 'err'); }
+      });
+    });
+
+    $$('button.edit-provider').forEach(btn => {
+      btn.addEventListener('click', () => openEditProvider(btn.dataset.id));
+    });
+
+    $$('a.sync-models').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        openSyncModels(a.dataset.id);
+      });
+    });
+  }
+  $('#addProviderBtn').addEventListener('click', () => openAddProvider());
+
+  function openAddProvider() {
+    openModal(`
+      <h3>Add Provider</h3>
+      <form id="addProviderForm" class="inline" style="flex-direction:column;align-items:stretch">
+        <div class="form-row"><label>Name</label><input name="name" required placeholder="OpenAI"></div>
+        <div class="form-row"><label>Protocol</label>
+          <select name="protocol" required>
+            <option value="OpenAI">OpenAI</option>
+            <option value="OpenAI-Compatible">OpenAI-Compatible</option>
+            <option value="Anthropic">Anthropic</option>
+            <option value="Gemini">Gemini</option>
+            <option value="Doubao">Doubao</option>
+            <option value="Wenxin">Wenxin</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Base URL</label><input name="baseUrl" required placeholder="https://api.openai.com/v1"></div>
+        <div class="form-row"><label>API Key (optional)</label><input name="apiKey" type="password" placeholder="sk-..."></div>
+        <div class="form-row" style="display:flex;gap:12px">
+          <div style="flex:1"><label>Input Price ($/MTok)</label><input name="inputPrice" type="number" step="0.000001"></div>
+          <div style="flex:1"><label>Output Price ($/MTok)</label><input name="outputPrice" type="number" step="0.000001"></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="action">Create Provider</button>
+        </div>
+      </form>
+    `);
+    $('#addProviderForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = {};
+      for (const [k, v] of fd) {
+        if (v) body[k] = v;
+      }
+      try {
+        await api('/providers', { method: 'POST', body });
+        toast('Provider created', 'ok');
+        closeModal();
+        loadProviders();
+      } catch (err) { toast(err.message, 'err'); }
+    });
   }
 
+  function openEditProvider(id) {
+    api('/providers').then(r => {
+      const p = r.providers.find(x => x.id === id);
+      if (!p) return;
+      openModal(`
+        <h3>Edit Provider</h3>
+        <form id="editProviderForm" class="inline" style="flex-direction:column;align-items:stretch">
+          <div class="form-row"><label>Name</label><input name="name" value="${escape(p.name)}" required></div>
+          <div class="form-row"><label>Base URL</label><input name="baseUrl" value="${escape(p.baseUrl)}" required></div>
+          <div class="form-actions">
+            <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="action">Save</button>
+          </div>
+        </form>
+      `);
+      $('#editProviderForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        toast('Edit coming soon', 'warn');
+        closeModal();
+      });
+    });
+  }
+
+  function openSyncModels(providerId) {
+    openModal(`
+      <h3>Sync Models for Provider</h3>
+      <p style="color:var(--text-dim)">Enter model IDs (one per line):</p>
+      <textarea id="syncModelsInput" rows="6" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:10px;border-radius:8px;font:inherit" placeholder="gpt-4o&#10;gpt-4o-mini&#10;o1-preview"></textarea>
+      <div class="form-actions">
+        <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
+        <button type="button" class="action" id="doSyncModels">Sync</button>
+      </div>
+    `);
+    $('#doSyncModels').addEventListener('click', async () => {
+      const lines = $('#syncModelsInput').value.trim().split('\n').filter(Boolean);
+      if (lines.length === 0) { toast('Enter at least one model', 'err'); return; }
+      try {
+        await api('/providers/' + providerId + '/sync-models', {
+          method: 'POST',
+          body: { models: lines.map(m => ({ modelId: m.trim(), displayName: m.trim() })) },
+        });
+        toast(`Synced ${lines.length} models`, 'ok');
+        closeModal();
+        loadProviders();
+      } catch (err) { toast(err.message, 'err'); }
+    });
+  }
+
+  // ---- Virtual Models ----
   async function loadVModels() {
     const r = await api('/virtual-models');
     $('#vmodelCount').textContent = r.virtualModels.length;
     if (r.virtualModels.length === 0) {
-      $('#vmodelList').innerHTML = '<div class="card empty">No virtual models. Create one: <code>ai-gateway vmodel create</code></div>';
+      $('#vmodelList').innerHTML = '<div class="empty">No virtual models. Click "+ Add Virtual Model" to create one.</div>';
       return;
     }
     $('#vmodelList').innerHTML = `
-      <div class="card" style="padding:0">
+      <div class="card" style="padding:0;overflow:auto">
         <table>
-          <thead><tr><th>Name</th><th>Strategy</th><th>Max retries</th><th>Created</th></tr></thead>
+          <thead><tr><th>Name</th><th>Strategy</th><th>Max Retries</th><th>Created</th><th>Actions</th></tr></thead>
           <tbody>${r.virtualModels.map(v => `
             <tr>
-              <td><strong>${escape(v.name)}</strong> <code style="color:var(--text-dim)">${escape(v.id)}</code></td>
-              <td><span class="pill">${v.strategy}</span></td>
+              <td>
+                <strong>${escape(v.name)}</strong>
+                <code style="color:var(--text-muted);font-size:11px">${escape(v.id)}</code>
+              </td>
+              <td><span class="pill info">${escape(v.strategy)}</span></td>
               <td>${v.maxRetries}</td>
-              <td>${fmt.rel(v.createdAt)}</td>
+              <td>${FORMATS.rel(v.createdAt)}</td>
+              <td>
+                <button class="action ghost sm view-members" data-id="${escape(v.id)}" data-name="${escape(v.name)}">Members</button>
+                <button class="action ghost sm view-avail" data-id="${escape(v.id)}" data-name="${escape(v.name)}">Availability</button>
+                <button class="action danger sm delete-vmodel" data-id="${escape(v.id)}" data-name="${escape(v.name)}">Delete</button>
+              </td>
             </tr>`).join('')}</tbody>
         </table>
       </div>`;
+
+    $$('button.delete-vmodel').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Delete virtual model "${btn.dataset.name}"?`)) return;
+        try {
+          await api('/virtual-models/' + btn.dataset.id, { method: 'DELETE' });
+          toast('Virtual model deleted', 'ok');
+          loadVModels();
+        } catch (e) { toast(e.message, 'err'); }
+      });
+    });
+
+    $$('button.view-members').forEach(btn => {
+      btn.addEventListener('click', () => openViewMembers(btn.dataset.id, btn.dataset.name));
+    });
+
+    $$('button.view-avail').forEach(btn => {
+      btn.addEventListener('click', () => openViewAvailability(btn.dataset.id, btn.dataset.name));
+    });
+  }
+  $('#addVModelBtn').addEventListener('click', () => openAddVModel());
+
+  function openAddVModel() {
+    openModal(`
+      <h3>Add Virtual Model</h3>
+      <form id="addVModelForm" class="inline" style="flex-direction:column;align-items:stretch">
+        <div class="form-row"><label>Name</label><input name="name" required placeholder="gpt-4o-cluster"></div>
+        <div class="form-row"><label>Strategy</label>
+          <select name="strategy" required>
+            <option value="RoundRobin">Round Robin</option>
+            <option value="WeightedRandom">Weighted Random</option>
+            <option value="Failover">Failover</option>
+            <option value="LowestLatency">Lowest Latency</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Max Retries</label><input name="maxRetries" type="number" value="2"></div>
+        <div class="form-actions">
+          <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="action">Create</button>
+        </div>
+      </form>
+    `);
+    $('#addVModelForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = {};
+      for (const [k, v] of fd) {
+        if (v) body[k] = v;
+      }
+      try {
+        await api('/virtual-models', { method: 'POST', body });
+        toast('Virtual model created', 'ok');
+        closeModal();
+        loadVModels();
+      } catch (err) { toast(err.message, 'err'); }
+    });
   }
 
+  function openViewMembers(vmId, vmName) {
+    openModal(`<h3>Members: ${escape(vmName)}</h3><div id="membersContent">Loading...</div>
+      <div class="form-actions"><button class="action ghost" onclick="closeModal()">Close</button></div>`);
+    api('/virtual-models/' + vmId + '/members').then(r => {
+      if (!r.members || r.members.length === 0) {
+        $('#membersContent').innerHTML = '<div class="empty">No members</div>';
+        return;
+      }
+      $('#membersContent').innerHTML = `
+        <table>
+          <thead><tr><th>Provider</th><th>Model</th><th>Weight</th><th>Priority</th><th>Status</th><th></th></tr></thead>
+          <tbody>${r.members.map(m => `
+            <tr>
+              <td><code>${escape(m.provider_name)}</code></td>
+              <td><strong>${escape(m.model_id)}</strong></td>
+              <td>${m.weight}</td>
+              <td>${m.priority}</td>
+              <td><span class="pill ${m.availability === 'available' ? 'ok' : m.availability === 'degraded' ? 'warn' : 'err'}">${m.availability}</span></td>
+              <td><button class="action danger sm remove-member" data-vmid="${escape(vmId)}" data-model="${escape(m.upstream_model_id)}">Remove</button></td>
+            </tr>`).join('')}</tbody>
+        </table>
+        <div style="margin-top:16px">
+          <button class="action sm" id="addMemberBtn">+ Add Member</button>
+        </div>`;
+      $$('button.remove-member').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          try {
+            await api('/virtual-models/' + btn.dataset.vmid + '/members/' + btn.dataset.model, { method: 'DELETE' });
+            toast('Member removed', 'ok');
+            openViewMembers(vmId, vmName);
+          } catch (e) { toast(e.message, 'err'); }
+        });
+      });
+      $('#addMemberBtn').addEventListener('click', () => openAddMember(vmId));
+    }).catch(e => { $('#membersContent').innerHTML = '<div class="empty">' + escape(e.message) + '</div>'; });
+  }
+
+  function openAddMember(vmId) {
+    api('/providers').then(r => {
+      const allModels = r.providers.flatMap(p => p.models.map(m => ({ ...m, providerId: p.id, providerName: p.name })));
+      if (allModels.length === 0) { toast('No providers/models available', 'err'); return; }
+      openModal(`
+        <h3>Add Member to Virtual Model</h3>
+        <form id="addMemberForm" class="inline" style="flex-direction:column;align-items:stretch">
+          <div class="form-row"><label>Upstream Model</label>
+            <select name="upstreamModelId" required>
+              ${allModels.map(m => `<option value="${escape(m.id)}">${escape(m.providerName)} / ${escape(m.modelId)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-row" style="display:flex;gap:12px">
+            <div style="flex:1"><label>Weight</label><input name="weight" type="number" value="1"></div>
+            <div style="flex:1"><label>Priority</label><input name="priority" type="number" value="100"></div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="action">Add</button>
+          </div>
+        </form>
+      `);
+      $('#addMemberForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const body = {};
+        for (const [k, v] of fd) {
+          if (v) body[k] = v;
+        }
+        try {
+          await api('/virtual-models/' + vmId + '/members', { method: 'POST', body });
+          toast('Member added', 'ok');
+          closeModal();
+          openViewMembers(vmId, '');
+        } catch (err) { toast(err.message, 'err'); }
+      });
+    });
+  }
+
+  function openViewAvailability(vmId, vmName) {
+    openModal(`<h3>Availability: ${escape(vmName)}</h3><div id="availContent">Loading...</div>
+      <div class="form-actions"><button class="action ghost" onclick="closeModal()">Close</button></div>`);
+    api('/virtual-models/' + vmId + '/availability').then(r => {
+      if (!r.members || r.members.length === 0) {
+        $('#availContent').innerHTML = '<div class="empty">No members</div>';
+        return;
+      }
+      $('#availContent').innerHTML = `
+        <table>
+          <thead><tr><th>Provider</th><th>Model</th><th>Status</th><th>P50</th><th>P95</th></tr></thead>
+          <tbody>${r.members.map(m => {
+            const cls = m.availability === 'available' ? 'ok' : m.availability === 'degraded' ? 'warn' : 'err';
+            return `<tr>
+              <td><code>${escape(m.provider_name)}</code></td>
+              <td><strong>${escape(m.model_id)}</strong></td>
+              <td><span class="pill ${cls}">${m.availability}</span></td>
+              <td>${m.latency_ms_p50 != null ? m.latency_ms_p50 + 'ms' : '-'}</td>
+              <td>${m.latency_ms_p95 != null ? m.latency_ms_p95 + 'ms' : '-'}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`;
+    }).catch(e => { $('#availContent').innerHTML = '<div class="empty">' + escape(e.message) + '</div>'; });
+  }
+
+  // ---- API Keys ----
   async function loadKeys() {
     const r = await api('/keys');
+    $('#keyCount').textContent = r.keys.length;
     if (r.keys.length === 0) {
-      $('#keyList').innerHTML = '<div class="card empty">No keys yet — click "+ New key".</div>';
+      $('#keyList').innerHTML = '<div class="empty">No API keys. Click "+ New Key" to create one.</div>';
       return;
     }
     $('#keyList').innerHTML = `
-      <div class="card" style="padding:0">
+      <div class="card" style="padding:0;overflow:auto">
         <table>
-          <thead><tr><th>Name</th><th>Prefix</th><th>Status</th><th>Budget</th><th>Created</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Prefix</th><th>Status</th><th>Budget</th><th>Cache</th><th>Created</th><th>Actions</th></tr></thead>
           <tbody>${r.keys.map(k => {
-            const b = [k.budgetDailyUsd, k.budgetMonthlyUsd, k.budgetTotalUsd].filter(x => x != null).map(x => '$' + x).join(' / ');
+            const budgets = [k.budgetDailyUsd, k.budgetMonthlyUsd, k.budgetTotalUsd].filter(x => x != null).map(x => '$' + x).join(' / ');
             return `<tr>
               <td><strong>${escape(k.name)}</strong></td>
               <td><code>${escape(k.prefix || '')}</code></td>
               <td><span class="pill ${k.status === 'active' ? 'ok' : 'err'}">${k.status}</span></td>
-              <td>${b || '<span style="color:var(--text-dim)">-</span>'}</td>
-              <td>${fmt.rel(k.createdAt)}</td>
-              <td><button class="action danger" data-del="${k.id}">Revoke</button></td>
+              <td>${budgets || '<span style="color:var(--text-muted)">-</span>'}</td>
+              <td>${k.cacheEnabled ? '<span class="pill ok">On</span>' : '<span class="pill">Off</span>'}</td>
+              <td>${FORMATS.rel(k.createdAt)}</td>
+              <td>
+                <button class="action ghost sm reset-budget" data-id="${escape(k.id)}" data-name="${escape(k.name)}">Reset Budget</button>
+                <button class="action danger sm delete-key" data-id="${escape(k.id)}" data-name="${escape(k.name)}">Delete</button>
+              </td>
             </tr>`;
           }).join('')}</tbody>
         </table>
       </div>`;
-    $$('button[data-del]').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm('Revoke and delete this key?')) return;
+
+    $$('button.delete-key').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Delete key "${btn.dataset.name}"?`)) return;
+        try {
+          await api('/keys/' + btn.dataset.id, { method: 'DELETE' });
+          toast('Key deleted', 'ok');
+          loadKeys();
+        } catch (e) { toast(e.message, 'err'); }
+      });
+    });
+
+    $$('button.reset-budget').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Reset budget for "${btn.dataset.name}"?`)) return;
+        try {
+          await api('/keys/' + btn.dataset.id + '/budget/reset', { method: 'POST' });
+          toast('Budget reset', 'ok');
+        } catch (e) { toast(e.message, 'err'); }
+      });
+    });
+  }
+  $('#newKeyBtn').addEventListener('click', () => openAddKey());
+
+  function openAddKey() {
+    openModal(`
+      <h3>Create API Key</h3>
+      <form id="addKeyForm" class="inline" style="flex-direction:column;align-items:stretch">
+        <div class="form-row"><label>Name</label><input name="name" required placeholder="prod-app"></div>
+        <div class="form-row" style="display:flex;gap:12px">
+          <div style="flex:1"><label>Daily Budget ($)</label><input name="budgetDailyUsd" type="number" step="0.01"></div>
+          <div style="flex:1"><label>Monthly Budget ($)</label><input name="budgetMonthlyUsd" type="number" step="0.01"></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="action">Create Key</button>
+        </div>
+      </form>
+    `);
+    $('#addKeyForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = { name: fd.get('name') };
+      for (const k of ['budgetDailyUsd', 'budgetMonthlyUsd']) {
+        const v = fd.get(k);
+        if (v) body[k] = Number(v);
+      }
       try {
-        await api('/keys/' + b.dataset.del, { method: 'DELETE' });
-        toast('Key deleted', 'ok');
+        const r = await api('/keys', { method: 'POST', body });
+        openModal(`
+          <h3>API Key Created</h3>
+          <p style="color:var(--text-dim)">Copy this token now — it will not be shown again:</p>
+          <pre><code id="newKeyToken">${escape(r.token)}</code></pre>
+          <div class="form-actions">
+            <button class="action" onclick="navigator.clipboard.writeText(document.getElementById('newKeyToken').textContent);toast('Copied!','ok')">Copy Token</button>
+            <button class="action ghost" onclick="closeModal()">Close</button>
+          </div>
+        `);
         loadKeys();
-      } catch (e) { toast(e.message, 'err'); }
-    }));
+      } catch (err) { toast(err.message, 'err'); }
+    });
   }
 
-  $('#newKey').addEventListener('click', () => { $('#newKeyDialog').style.display = 'block'; $('#newKeyResult').style.display = 'none'; });
-  $('#cancelKey').addEventListener('click', () => { $('#newKeyDialog').style.display = 'none'; });
-  $('#keyForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const body = { name: fd.get('name') };
-    for (const k of ['budgetDailyUsd', 'budgetMonthlyUsd', 'budgetTotalUsd']) {
-      const v = fd.get(k);
-      if (v) body[k] = Number(v);
-    }
-    try {
-      const r = await api('/keys', { method: 'POST', body });
-      $('#newKeyToken').textContent = r.token;
-      $('#newKeyResult').style.display = 'block';
-      toast('Key created — copy the token', 'ok');
-      loadKeys();
-    } catch (err) { toast(err.message, 'err'); }
-  });
-
+  // ---- Usage ----
   async function loadUsage() {
     const since = Number($('#usageRange').value);
     const r = await api('/usage?sinceMs=' + (Date.now() - since) + '&limit=100');
-    if (r.records.length === 0) {
-      $('#usageRows').innerHTML = '<tr><td colspan="8" class="empty">no records in window</td></tr>';
+    if (!r.records || r.records.length === 0) {
+      $('#usageRows').innerHTML = '<tr><td colspan="9" class="empty">No records in window</td></tr>';
       return;
     }
     $('#usageRows').innerHTML = r.records.map(u => {
       const ok = u.status_code >= 200 && u.status_code < 400;
       return `<tr>
-        <td>${fmt.time(u.created_at)}</td>
-        <td><code>${escape(u.upstream_model_id || u.virtual_model_id || '-')}</code></td>
-        <td><span class="pill">${u.client_protocol}</span></td>
-        <td>${fmt.int(u.total_tokens)}</td>
-        <td>${fmt.usd(u.cost_usd)}</td>
-        <td>${u.cache_hit === 'none' ? '-' : `<span class="pill ok">${u.cache_hit}</span>`}</td>
+        <td>${FORMATS.time(u.created_at)}</td>
+        <td><code>${escape(u.virtual_model_id || u.upstream_model_id || '-')}</code></td>
+        <td><code style="color:var(--text-muted)">${escape(u.upstream_provider_id || '-')}</code></td>
+        <td><span class="pill">${escape(u.client_protocol)}</span></td>
+        <td>${FORMATS.int(u.total_tokens)}</td>
+        <td>${FORMATS.usd(u.cost_usd)}</td>
+        <td>${u.cache_hit && u.cache_hit !== 'none' ? `<span class="pill ok">${escape(u.cache_hit)}</span>` : '<span class="pill">-</span>'}</td>
         <td><span class="pill ${ok ? 'ok' : 'err'}">${u.status_code}</span></td>
         <td>${u.latency_ms}ms</td>
       </tr>`;
     }).join('');
   }
   $('#usageRange').addEventListener('change', loadUsage);
+  $('#refreshUsage').addEventListener('click', loadUsage);
 
+  // ---- Settings ----
   async function loadSettings() {
     try {
       const r = await api('/cache/size');
-      $('#cacheSize').textContent = fmt.int(r.size);
+      $('#cacheSize').textContent = FORMATS.int(r.size);
     } catch (e) { /* ignore */ }
   }
-  $('#clearCache').addEventListener('click', async () => {
+  $('#clearCacheBtn').addEventListener('click', async () => {
     if (!confirm('Clear all cache entries?')) return;
     try {
       const r = await api('/cache/clear', { method: 'POST' });
@@ -486,21 +1103,24 @@ GET /metrics</code></pre>
     } catch (e) { toast(e.message, 'err'); }
   });
 
-  function escape(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-
+  // ---- View loader ----
   function loadView(id) {
-    const fn = {
+    const loaders = {
       dashboard: loadDashboard,
+      availability: loadAvailability,
       providers: loadProviders,
-      vmodels:   loadVModels,
-      keys:      loadKeys,
-      usage:     loadUsage,
-      settings:  loadSettings,
-    }[id];
+      vmodels: loadVModels,
+      keys: loadKeys,
+      usage: loadUsage,
+      settings: loadSettings,
+    };
+    const fn = loaders[id];
     if (fn) fn().catch(e => toast(e.message, 'err'));
   }
+
+  // Init
+  setView(currentView());
+  window.addEventListener('hashchange', () => setView(currentView()));
 })();
 </script>
 </body>

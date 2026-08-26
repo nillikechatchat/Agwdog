@@ -57,11 +57,12 @@ export interface ServerOptions {
   onStopped?: () => void | Promise<void>;
   /** Optional admin subsystem dependencies. When provided, requests to
    * `/admin/*` are served before the gateway route table. */
-  admin?: {
-    repos: Repositories;
-    registry: Registry;
-    adminToken?: string;
-  };
+   admin?: {
+     repos: Repositories;
+     registry: Registry;
+     adminToken?: string;
+     masterKey?: Buffer;
+   };
 }
 
 const DEFAULT_PORT = 3000;
@@ -189,6 +190,7 @@ async function handleRequest(
         repos: opts.admin.repos,
         registry: opts.admin.registry,
         adminToken: opts.admin.adminToken,
+        masterKey: opts.admin.masterKey,
       });
       if (handled) return;
     } catch (err) {

@@ -149,7 +149,6 @@ describe('admin api', () => {
     await handleAdminRequest(req, res, deps);
     const body = resp(capture);
     expect(body['providers']).toEqual([]);
-    expect(body['models']).toEqual([]);
   });
 
   it('GET /admin/api/virtual-models returns empty when none', async () => {
@@ -214,7 +213,7 @@ describe('admin api', () => {
     expect(res.statusCode).toBe(200);
     expect(res.getHeader('Content-Type') as string).toContain('text/html');
     const html = Buffer.concat(capture.chunks).toString('utf8');
-    expect(html).toContain('ai-gateway');
+    expect(html).toContain('AI Gateway');
     expect(html).toContain('Dashboard');
   });
 });

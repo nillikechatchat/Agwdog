@@ -7,9 +7,7 @@
  *   npx ai-gateway --version
  *   npx ai-gateway --help
  *
- * The actual server wiring lives in `src/server/lifecycle.ts` + `src/admin/api.ts`.
- * This file is intentionally thin — all business logic is exercised by the test
- * suite, not here.
+ * The actual server wiring lives in `src/server/http.ts`.
  */
 
 import { resolve } from 'node:path';
@@ -17,7 +15,7 @@ import { argv, env } from 'node:process';
 
 const VERSION = '0.1.0';
 
-function main(): void {
+async function main(): Promise<void> {
   const args = argv.slice(2);
   if (args.includes('--version') || args.includes('-v')) {
     process.stdout.write(`${VERSION}\n`);
@@ -56,16 +54,14 @@ Environment variables:
     ?? resolve(process.cwd(), 'gateway.config.json');
 
   // Lazy-load to avoid type-circular import at startup.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { startServer } = require('../server/http.js') as typeof import('../server/http.js');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { migrate, openDatabase } = require('../storage/db.js') as typeof import('../storage/db.js');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { Repositories } = require('../storage/index.js') as typeof import('../storage/index.js');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { Registry } = require('../observability/registry.js') as typeof import('../observability/registry.js');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { log } = require('../utils/logger.js') as typeof import('../utils/logger.js');
+  const { startServer } = await import('../server/http.js');
+  const { migrate, openDatabase } = await import('../storage/db.js');
+  const { Repositories } = await import('../storage/index.js');
+  const { Registry } = await import('../observability/registry.js');
+  const { createPipeline } = await import('../dispatch/index.js');
+  const { loadConfig } = await import('../config/loader.js');
+  const { loadMasterKey, encrypt } = await import('../crypto/aes.js');
+  const { log } = await import('../utils/logger.js');
 
   const dataDir = env['GATEWAY_DATA_DIR'] ?? resolve(process.cwd(), 'data');
   const dbPath = resolve(dataDir, 'gateway.db');
@@ -73,33 +69,108 @@ Environment variables:
   migrate(db as never);
   const repos = new Repositories(db as never);
   const registry = new Registry();
+  const config = loadConfig({ configPath: configFile });
 
-  // Minimal dispatch: just auth + metrics. The real adapter/client wiring
-  // is deferred to a future milestone (see design.md §3).
-  async function dispatch({ res }: { res: import('node:http').ServerResponse }): Promise<void> {
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ ok: true, version: VERSION, message: 'gateway up (dispatch stub)' }));
+  // Load or generate master key for API key encryption
+  const masterKey = loadMasterKey(dataDir, env['GATEWAY_MASTER_KEY']);
+
+  // Initialize providers and virtual models from config
+  if (config.providers) {
+    for (const p of config.providers) {
+      try {
+        const existing = repos.providers.getByName(p.name);
+        if (!existing) {
+          // Encrypt the API key
+          const encrypted = encrypt(p.apiKey, masterKey);
+          repos.providers.insert({
+            id: `provider-${p.name.toLowerCase().replace(/\s+/g, '-')}`,
+            name: p.name,
+            protocol: p.protocol,
+            baseUrl: p.baseUrl,
+            apiKeyCiphertext: encrypted.ciphertext,
+            apiKeyIv: encrypted.iv,
+            apiKeyTag: encrypted.tag,
+            inputPricePerMTokensUsd: p.inputPricePerMTokensUsd ?? null,
+            outputPricePerMTokensUsd: p.outputPricePerMTokensUsd ?? null,
+            cachedInputPricePerMTokensUsd: p.cachedInputPricePerMTokensUsd ?? null,
+            enabled: p.enabled !== false,
+            extra: p.extra ?? null,
+          });
+        }
+      } catch (e) {
+        log.error('provider_insert_error', { name: p.name, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
   }
 
-  const adminToken = env['GATEWAY_ADMIN_TOKEN'];
-  const server = startServer({
+  if (config.virtualModels) {
+    for (const vm of config.virtualModels) {
+      try {
+        const existing = repos.virtualModels.getByName(vm.name);
+        if (!existing) {
+          repos.virtualModels.insert({
+            id: `vm-${vm.name.toLowerCase().replace(/\s+/g, '-')}`,
+            name: vm.name,
+            strategy: vm.strategy,
+            latencyWindow: vm.latencyWindow ?? null,
+            failureThreshold: vm.failureThreshold ?? null,
+            recoveryThreshold: vm.recoveryThreshold ?? null,
+            maxRetries: 2,
+            fallbackChain: vm.fallbackChain ?? [],
+          });
+        }
+      } catch {}
+    }
+  }
+
+  // Create pipeline with full wiring
+  const pipelineDeps = {
+    db,
+    repos,
+    registry,
+    config: {
+      cacheEnabled: config.cacheEnabled,
+      cacheTtlSeconds: config.cacheTtlSeconds,
+      connectTimeoutMs: config.connectTimeoutMs,
+      requestTimeoutMs: config.requestTimeoutMs,
+    },
+  };
+  const pipeline = createPipeline(pipelineDeps);
+
+  const dispatch = async (input: any): Promise<void> => {
+    await pipeline.dispatch({
+      requestId: input.ctx.requestId ?? '',
+      req: input.req,
+      res: input.res,
+      method: input.method,
+      pathname: input.pathname,
+      body: input.body,
+      params: input.params,
+    });
+  };
+
+  const serverOpts: any = {
     dispatch,
     db,
-    port: Number(env['GATEWAY_PORT']) || 3000,
-    host: env['GATEWAY_HOST'] || '127.0.0.1',
-    admin: {
-      repos,
-      registry,
-      ...(adminToken !== undefined ? { adminToken } : {}),
-    },
-    onListen(info) {
+    port: Number(env['GATEWAY_PORT']) || config.port || 3000,
+    onListen(info: any) {
       log.info('cli.start', { host: info.host, port: info.port, configFile });
     },
     onStopped() {
       try { db.close(); } catch { /* best-effort */ }
     },
-  });
+  };
+
+  if (env['GATEWAY_ADMIN_TOKEN'] || config.adminToken) {
+    serverOpts.admin = {
+      repos,
+      registry,
+      adminToken: env['GATEWAY_ADMIN_TOKEN'] || config.adminToken,
+      masterKey,
+    };
+  }
+
+  const server = startServer(serverOpts);
 
   // Listen.
   void server.ready.then(() => {
@@ -107,4 +178,7 @@ Environment variables:
   });
 }
 
-main();
+void main().catch((err) => {
+  console.error('Failed to start gateway:', err);
+  process.exit(1);
+});
