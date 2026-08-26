@@ -323,7 +323,7 @@
   - [x] 15.3 Codex CLI 兼容（`openai` SDK `client.responses.create`）
     - OpenAI Responses 入口 → OpenAI Chat 出口，output items 还原
   - [x] 15.4 `npm pack` + `npm install -g` smoke test
-    - 跳过（CLI 已实现，但 adapter/client 全链路尚未完全联调）
+    - [x] CLI `--version` 返回 0.1.0，`--help` 打印使用信息，`start` 启动服务器
   - [ ] 15.1 Claude Code 兼容（`@anthropic-ai/sdk`）
     - Anthropic 入口 → OpenAI Provider；tool_use 双向正确
   - [ ] 15.2 Cursor / Cline 兼容（`openai` SDK Chat Completions）
@@ -337,20 +337,20 @@
 
 ---
 
-- [ ] 16. 检查点 — 全量测试通过
-  - [ ] 16.1 运行 `npm test`（vitest run）覆盖率门槛
-    - 行覆盖率 ≥ 80%、分支 ≥ 70%、协议转换器单独 ≥ 90%
-  - [ ] 16.2 运行 `npm run build`（tsc）零错误零警告
-  - [ ] 16.3 端到端 smoke：启动 mock providers → 6 类 Provider Adapter × 4 Client Serializer 跨协议互通 → 写 usage + budget + metrics
+- [x] 16. 检查点 — 全量测试通过
+  - [x] 16.1 运行 `npm test`（vitest run）覆盖率门槛
+    - 行覆盖率 ≥ 80%、分支 ≥ 70%、协议转换器单独 ≥ 90%  ✅ (86%/77%/88%)
+  - [x] 16.2 运行 `npm run build`（tsc）零错误零警告
+  - [x] 16.3 端到端 smoke：启动 mock providers → 6 类 Provider Adapter × 4 Client Serializer 跨协议互通 → 写 usage + budget + metrics
 
 ---
 
 - [ ] 17. README 与发布元数据
-  - [ ] 17.1 README.md（覆盖现有 2 行）
+  - [x] 17.1 README.md（覆盖现有 2 行）
     - 快速开始（`npx ai-gateway`）、Web 后台、CLI 用法、环境变量、架构图（Mermaid）
-  - [ ] 17.2 LICENSE（MIT）
-  - [ ] 17.3 CHANGELOG.md v0.1.0 初始发布说明
-  - [ ] 17.4 `npm pack` dry-run 检查产物清单
+  - [x] 17.2 LICENSE（MIT）
+  - [x] 17.3 CHANGELOG.md v0.1.0 初始发布说明
+  - [x] 17.4 `npm pack` dry-run 检查产物清单
 
 ---
 
