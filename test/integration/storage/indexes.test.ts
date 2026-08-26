@@ -146,7 +146,7 @@ describe('UpstreamModelIndex', () => {
     repos!.providerModels.insert({ id: 'm-azure-gpt-4o', providerId: 'p-azure', modelId: 'gpt-4o' });
 
     const idx = UpstreamModelIndex.fromRepositories(repos!);
-    const entries = idx.lookup('gpt-4o');
+    const entries = idx.lookupByName('gpt-4o');
     expect(entries).toHaveLength(2);
     expect(entries.map((e) => e.providerName).sort()).toEqual(['azure', 'openai']);
     expect(providerId).toBe('p-openai');
@@ -155,8 +155,8 @@ describe('UpstreamModelIndex', () => {
   it('removeProvider drops all entries for that provider', () => {
     seedProviderWithModel('openai', 'gpt-4o');
     const idx = UpstreamModelIndex.fromRepositories(repos!);
-    expect(idx.lookup('gpt-4o')).toHaveLength(1);
+    expect(idx.lookupByName('gpt-4o')).toHaveLength(1);
     idx.removeProvider('p-openai');
-    expect(idx.lookup('gpt-4o')).toHaveLength(0);
+    expect(idx.lookupByName('gpt-4o')).toHaveLength(0);
   });
 });

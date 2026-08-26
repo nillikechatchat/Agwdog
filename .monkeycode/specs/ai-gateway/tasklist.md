@@ -123,16 +123,22 @@
 
 ---
 
-- [ ] 7. Router（4 路由策略 + Fallback 链，Req 4）
-  - [ ] 7.1 Router `src/router/index.ts`
-    - 解析 `req.body.model` → 匹配 `virtualModelIndex`；未命中走 `upstreamModelIndex` 直传
-    - 跳过 `availabilityCache.status === 'unavailable'`
-  - [ ] 7.2 4 策略实现 `src/router/strategies/`
-    - `roundRobin.ts` — 进程内原子计数
-    - `weightedRandom.ts` — `crypto.randomInt` + 累计权重；weights 全 0 → 400 `invalid_weights`
-    - `failover.ts` — priority 升序，跳过 unavailable
-    - `lowestLatency.ts` — 滑动窗口（默认 5）平均延迟最低
-  - [ ] 7.3 Fallback Chain
+- [x] 7. Router（4 路由策略 + Fallback 链，Req 4）
+  - [x] 7.1 Router 入口 `src/router/strategies.ts` + `src/router/dry-run.ts`
+    - `route(modelId, deps)` 走 VirtualModelIndex → UpstreamModelIndex
+    - 跳过 `availabilityCache.status === 'unavailable'`（`isRoutable`）
+    - `dryRunRoute()` 不消耗 RoundRobin 计数器
+  - [x] 7.2 4 策略实现
+    - `RoundRobin` — 进程内原子计数（每 vmId）
+    - `WeightedRandom` — 累计权重 + 可注入 `random()`；权重全 0 退回首个成员
+    - `Failover` — priority 升序，跳过 unavailable
+    - `LowestLatency` — 取 availability cache 中 p50 最小者；缺失按 +Infinity 处理
+  - [x] 7.3 Fallback Chain
+    - 主 vm 选不到时按 `fallback_chain_json` 顺序遍历其他 virtual model
+    - 整链不可用时抛 `RoutingError(reason='chain_exhausted', attempts=[])`
+  - [x] 7.4 RoutingError 分类 — `not_found` / `chain_exhausted`
+  - [x] 7.5 测试 `test/unit/router/strategies.test.ts` + `test/integration/router/strategies.test.ts`
+    - 4 策略 + 跳过 unavailable + Fallback Chain + 错误分类 + dryRun 不增 counter
     - `Virtual Model.fallbackChain` 为 VirtualModel 名数组
     - 全员 unavailable 时按链序尝试；响应头 `X-Gateway-Fallback-From: <prevModelId>`
     - 流式首帧已发送则禁止降级

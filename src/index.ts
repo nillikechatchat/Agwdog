@@ -136,3 +136,13 @@ export {
   type CacheLookupOutcome,
 } from './cache/exact.js';
 export { writeCacheHit } from './cache/serialize.js';
+
+export {
+  route,
+  tryOne,
+  RoutingError,
+  type RoutingDecision,
+  type RouteRequestInput,
+  type RouterDeps,
+} from './router/strategies.js';
+export { dryRunRoute, type DryRunResult } from './router/dry-run.js';

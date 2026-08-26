@@ -43,7 +43,10 @@ export interface UpstreamModelIndexEntry {
   providerId: string;
   providerName: string;
   providerProtocol: string;
+  /** `provider_models.id` (PK). The Router uses this as the lookup key because it matches `virtual_model_members.upstream_model_id`. */
   modelId: string;
+  /** The human-readable upstream model name (e.g. `gpt-4o`). Stored in `provider_models.model_id`. */
+  upstreamModelName: string;
   availability: Availability;
 }
 
@@ -254,7 +257,8 @@ export class UpstreamModelIndex {
           providerId: p.id,
           providerName: p.name,
           providerProtocol: p.protocol,
-          modelId: m.model_id,
+          modelId: m.id,
+          upstreamModelName: m.model_id,
           availability: m.availability,
         });
       }
@@ -279,7 +283,25 @@ export class UpstreamModelIndex {
     }
   }
 
+  /**
+   * Look up by `provider_models.id` (the PK). The Router uses this key because
+   * `virtual_model_members.upstream_model_id` stores the PK. Pass the PK here.
+   */
   lookup(modelId: string): UpstreamModelIndexEntry[] {
     return this.byModelId.get(modelId) ?? [];
+  }
+
+  /**
+   * Convenience lookup by the human-readable upstream model name (e.g. `gpt-4o`).
+   * Returns every provider offering a model with that name across all providers.
+   */
+  lookupByName(name: string): UpstreamModelIndexEntry[] {
+    const out: UpstreamModelIndexEntry[] = [];
+    for (const list of this.byModelId.values()) {
+      for (const e of list) {
+        if (e.upstreamModelName === name) out.push(e);
+      }
+    }
+    return out;
   }
 }
