@@ -530,12 +530,46 @@ function handleAvailability(ctx: AdminContext) {
   })) };
 }
 
-function locateWebIndex(): string | null {
-  const candidates = [
-    join(process.cwd(), 'web', 'index.html'),
-    join(dirname(fileURLToPath(import.meta.url)), '..', 'web', 'index.html'),
+function webAssetCandidates(filename: string): string[] {
+  return [
+    join(process.cwd(), 'web', filename),
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'web', filename),
   ];
-  for (const p of candidates) if (existsSync(p)) return readFileSync(p, 'utf8');
+}
+
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+};
+
+/**
+ * Serve a read-only allow-list of static files under /admin/vendor/.
+ * Path traversal is impossible: only `vendor/<name>` with an alphanumeric
+ * + dot + dash filename is accepted.
+ */
+function tryServeVendorFile(pathname: string, res: ServerResponse): boolean {
+  const m = /^\/admin\/vendor\/([A-Za-z0-9._-]+)$/.exec(pathname);
+  if (!m) return false;
+  const filename = m[1]!;
+  for (const p of webAssetCandidates(join('vendor', filename))) {
+    if (existsSync(p)) {
+      const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+      res.statusCode = 200;
+      res.setHeader('Content-Type', MIME_TYPES[ext] ?? 'application/octet-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.end(readFileSync(p));
+      return true;
+    }
+  }
+  return false;
+}
+
+function locateWebIndex(): string | null {
+  for (const p of webAssetCandidates('index.html')) if (existsSync(p)) return readFileSync(p, 'utf8');
   return null;
 }
 
@@ -558,6 +592,8 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
     res.end(html);
     return true;
   }
+
+  if (tryServeVendorFile(pathname, res)) return true;
 
   if (!checkAdminToken(req, deps)) {
     json(res, { error: 'unauthorized' }, 401);

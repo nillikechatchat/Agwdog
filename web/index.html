@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Gateway · Admin</title>
+  <title>AI Gateway · 管理后台</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233b82f6'/%3E%3Ctext x='16' y='22' font-size='14' font-family='sans-serif' font-weight='700' fill='white' text-anchor='middle'%3EAG%3C/text%3E%3C/svg%3E">
   <style>
     :root {
       --sidebar-w: 220px;
@@ -29,12 +30,13 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
       display: flex;
       min-height: 100vh;
     }
+    [v-cloak] { display: none; }
 
     /* Sidebar */
     aside {
@@ -61,19 +63,11 @@
       display: flex; align-items: center; justify-content: center;
       font-weight: 700; font-size: 14px;
     }
-    aside .brand .title {
-      font-size: 15px; font-weight: 600;
-    }
-    aside .brand .version {
-      font-size: 11px; color: var(--text-muted);
-    }
-    aside nav {
-      flex: 1; padding: 12px 10px;
-      overflow-y: auto;
-    }
+    aside .brand .title { font-size: 15px; font-weight: 600; }
+    aside .brand .version { font-size: 11px; color: var(--text-muted); }
+    aside nav { flex: 1; padding: 12px 10px; overflow-y: auto; }
     aside nav .section-label {
       font-size: 11px;
-      text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-muted);
       padding: 8px 10px 4px;
@@ -96,6 +90,11 @@
     aside nav button:hover { background: var(--sidebar-hover); color: var(--text); }
     aside nav button.active { background: var(--sidebar-active); color: white; }
     aside nav button .icon { width: 18px; text-align: center; flex-shrink: 0; }
+    aside nav button .nav-badge {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
     aside .sidebar-footer {
       padding: 12px 14px;
       border-top: 1px solid var(--border);
@@ -140,7 +139,7 @@
       background: var(--ok);
       border-radius: 50%;
     }
-    header button {
+    header .btn {
       background: var(--accent);
       color: white;
       border: 0;
@@ -150,23 +149,17 @@
       font: inherit;
       font-weight: 500;
     }
-    header button:hover { background: var(--accent-hover); }
-    header button.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
-    header button.ghost:hover { background: var(--panel-2); color: var(--text); }
+    header .btn:hover { background: var(--accent-hover); }
+    header .btn.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    header .btn.ghost:hover { background: var(--panel-2); color: var(--text); }
 
     /* Content */
-    main {
-      flex: 1;
-      padding: 24px;
-      max-width: 1400px;
-      width: 100%;
-    }
+    main { flex: 1; padding: 24px; max-width: 1400px; width: 100%; }
 
     /* Cards */
     .grid { display: grid; gap: 16px; }
     .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
-    .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-    .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width: 1100px) { .grid.cols-4 { grid-template-columns: repeat(2, 1fr); } }
 
     .card {
       background: var(--panel);
@@ -185,17 +178,18 @@
       font-size: 13px;
       font-weight: 600;
       color: var(--text-dim);
-      text-transform: uppercase;
       letter-spacing: 0.04em;
     }
-    .stat { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .stat { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .stat.small { font-size: 20px; }
     .stat .sub { display: block; font-size: 12px; color: var(--text-muted); font-weight: 400; margin-top: 6px; }
 
     /* Table */
     table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
     th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--border); }
-    th { color: var(--text-muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+    th { color: var(--text-muted); font-weight: 500; font-size: 11px; letter-spacing: 0.05em; white-space: nowrap; }
     tr:hover td { background: var(--panel-2); }
+    .table-wrap { overflow-x: auto; }
 
     /* Pills */
     .pill {
@@ -206,6 +200,7 @@
       background: var(--panel-2);
       border: 1px solid var(--border);
       color: var(--text-dim);
+      white-space: nowrap;
     }
     .pill.ok { color: var(--ok); border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.1); }
     .pill.warn { color: var(--warn); border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); }
@@ -213,7 +208,7 @@
     .pill.info { color: var(--accent); border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.1); }
 
     /* Buttons */
-    button.action {
+    .btn {
       background: var(--accent);
       color: white;
       border: 0;
@@ -223,12 +218,13 @@
       font: inherit;
       font-weight: 500;
     }
-    button.action:hover { background: var(--accent-hover); }
-    button.action.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
-    button.action.ghost:hover { background: var(--panel-2); color: var(--text); }
-    button.action.danger { background: rgba(239,68,68,0.15); color: var(--err); border: 1px solid rgba(239,68,68,0.3); }
-    button.action.danger:hover { background: rgba(239,68,68,0.25); }
-    button.action.sm { padding: 5px 10px; font-size: 12px; }
+    .btn:hover { background: var(--accent-hover); }
+    .btn.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    .btn.ghost:hover { background: var(--panel-2); color: var(--text); }
+    .btn.danger { background: rgba(239,68,68,0.15); color: var(--err); border: 1px solid rgba(239,68,68,0.3); }
+    .btn.danger:hover { background: rgba(239,68,68,0.25); }
+    .btn.sm { padding: 5px 10px; font-size: 12px; }
+    .actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
     /* Forms */
     input, select, textarea {
@@ -242,17 +238,15 @@
     }
     input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--accent); }
     label { color: var(--text-dim); font-size: 12px; display: block; margin-bottom: 4px; }
-    form.inline { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-    form.inline > div { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 160px; }
+    .form-row { margin-bottom: 12px; }
+    .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 480px) { .form-grid-2 { grid-template-columns: 1fr; } }
+    .field-hint { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 
     /* Toolbar */
-    .toolbar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
-    }
+    .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
     .toolbar .spacer { flex: 1; }
+    .toolbar select { width: auto; }
 
     /* Empty state */
     .empty {
@@ -264,61 +258,57 @@
       border: 1px dashed var(--border-2);
     }
 
-    /* Code */
-    pre { background: var(--bg); padding: 12px; border-radius: 8px; overflow: auto; font-size: 12px; }
-    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--text-dim); }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--text-dim); word-break: break-all; }
+    pre { background: var(--bg); padding: 12px; border-radius: 8px; overflow: auto; font-size: 12px; margin: 0; }
 
-    /* Dialog */
+    /* Modal */
     .modal-overlay {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.6);
       display: flex; align-items: center; justify-content: center;
       z-index: 200;
+      padding: 16px;
     }
     .modal {
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 24px;
-      width: 90%;
+      width: 100%;
       max-width: 560px;
       max-height: 90vh;
       overflow-y: auto;
     }
     .modal h3 { margin: 0 0 16px; font-size: 16px; }
-    .modal .form-row { margin-bottom: 12px; }
-    .modal .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
-
-    /* Series chart */
-    .series {
-      display: flex; align-items: flex-end; gap: 3px; height: 100px; padding: 10px 0;
-    }
-    .series .bar {
-      flex: 1; background: var(--accent); opacity: 0.7; min-height: 2px;
-      border-radius: 3px 3px 0 0; transition: opacity 0.2s;
-    }
-    .series .bar:hover { opacity: 1; }
-    .series .bar[data-empty="1"] { background: var(--border); opacity: 0.3; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 
     /* Toast */
-    .toast {
+    .toast-container {
       position: fixed; bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 300;
+    }
+    .toast {
       padding: 12px 18px;
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 10px;
-      z-index: 300;
       max-width: 380px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     }
     .toast.err { border-color: var(--err); }
     .toast.ok { border-color: var(--ok); }
+    .toast-enter-active, .toast-leave-active { transition: all 0.25s ease; }
+    .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(8px); }
+
+    .fade-enter-active, .fade-leave-active { transition: opacity 0.15s ease; }
+    .fade-enter-from, .fade-leave-to { opacity: 0; }
 
     /* View visibility */
     .view { display: none; }
     .view.active { display: block; }
 
-    /* Mobile menu button */
+    /* Mobile */
     .hamburger {
       display: none;
       background: transparent;
@@ -329,9 +319,7 @@
       border-radius: 6px;
     }
     .hamburger:hover { background: var(--panel-2); }
-    .hamburger svg { width: 20px; height: 20px; }
-
-    /* Sidebar overlay for mobile */
+    .hamburger svg { width: 20px; height: 20px; display: block; }
     .sidebar-overlay {
       display: none;
       position: fixed;
@@ -340,20 +328,16 @@
       z-index: 99;
     }
 
-    /* Responsive styles */
     @media (max-width: 768px) {
-      aside {
-        transform: translateX(-100%);
-        transition: transform 0.3s ease;
-      }
+      aside { transform: translateX(-100%); transition: transform 0.3s ease; }
       aside.open { transform: translateX(0); }
       .sidebar-overlay.visible { display: block; }
       .hamburger { display: flex; align-items: center; justify-content: center; }
       .main-wrap { margin-left: 0; }
       main { padding: 16px; }
-      .grid.cols-4, .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
+      .grid.cols-4 { grid-template-columns: 1fr; }
+      header { padding: 0 12px; }
     }
-
     @media (min-width: 769px) {
       aside { transform: translateX(0); }
       .hamburger { display: none; }
@@ -361,957 +345,1012 @@
   </style>
 </head>
 <body>
+<div id="app" v-cloak>
+  <div class="sidebar-overlay" :class="{ visible: sidebarOpen }" @click="sidebarOpen = false"></div>
 
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-<aside id="sidebar">
-  <div class="brand">
-    <div class="logo">AG</div>
-    <div>
-      <div class="title">AI Gateway</div>
-      <div class="version">v0.1.0</div>
+  <aside :class="{ open: sidebarOpen }">
+    <div class="brand">
+      <div class="logo">AG</div>
+      <div>
+        <div class="title">AI Gateway</div>
+        <div class="version">v0.1.0</div>
+      </div>
     </div>
-  </div>
-  <nav id="sidebarNav">
-    <div class="section-label">Overview</div>
-    <button class="active" data-view="dashboard"><span class="icon">📊</span> Dashboard</button>
-    <button data-view="availability"><span class="icon">🔍</span> Availability</button>
-    <div class="section-label">Configuration</div>
-    <button data-view="providers"><span class="icon">🔌</span> Providers</button>
-    <button data-view="vmodels"><span class="icon">🎯</span> Virtual Models</button>
-    <button data-view="keys"><span class="icon">🔑</span> API Keys</button>
-    <div class="section-label">Monitoring</div>
-    <button data-view="usage"><span class="icon">📈</span> Usage Logs</button>
-    <button data-view="settings"><span class="icon">⚙️</span> Settings</button>
-  </nav>
-  <div class="sidebar-footer">
-    Local-first AI Gateway<br>
-    No external dependencies
-  </div>
-</aside>
+    <nav>
+      <template v-for="group in navGroups" :key="group.label">
+        <div class="section-label">{{ group.label }}</div>
+        <button v-for="item in group.items" :key="item.id"
+                :class="{ active: currentView === item.id }"
+                @click="switchView(item.id)">
+          <span class="icon">{{ item.icon }}</span> {{ item.label }}
+        </button>
+      </template>
+    </nav>
+    <div class="sidebar-footer">本地优先 AI 网关<br>零外部依赖</div>
+  </aside>
 
-<div class="main-wrap">
-  <header>
-    <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 12h18M3 6h18M3 18h18"/>
-      </svg>
-    </button>
-    <div class="page-title" id="pageTitle">Dashboard</div>
-    <div class="status-pill">
-      <div class="status-dot"></div>
-      <span>Running</span>
-    </div>
-    <span class="spacer"></span>
-    <button class="ghost" id="refreshBtn">Refresh</button>
-  </header>
+  <div class="main-wrap">
+    <header>
+      <button class="hamburger" @click="sidebarOpen = !sidebarOpen" aria-label="切换菜单">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+      <div class="page-title">{{ currentViewInfo?.label ?? '仪表盘' }}</div>
+      <div class="status-pill" v-if="serverOnline">
+        <div class="status-dot"></div><span>运行中</span>
+      </div>
+      <div class="status-pill" v-else style="color:var(--err)">
+        <div class="status-dot" style="background:var(--err)"></div><span>离线</span>
+      </div>
+      <button class="btn ghost" @click="reloadCurrent">刷新</button>
+    </header>
 
-  <main>
-    <!-- Dashboard -->
-    <section class="view active" data-view="dashboard">
-      <div class="grid cols-4" id="dashCards"></div>
-      <div class="card" style="margin-top:16px">
-        <div class="card-header">
-          <h2>Last 7 Days · Request Volume</h2>
-        </div>
-        <div class="series" id="series"></div>
-      </div>
-    </section>
-
-    <!-- Availability -->
-    <section class="view" data-view="availability">
-      <div class="toolbar">
-        <h2 style="margin:0">Provider Availability</h2>
-        <span class="spacer"></span>
-        <button class="action ghost sm" id="refreshAvail">Refresh</button>
-      </div>
-      <div class="card" style="padding:0; overflow:auto">
-        <table>
-          <thead><tr><th>Provider</th><th>Model</th><th>Status</th><th>P50 Latency</th><th>P95 Latency</th></tr></thead>
-          <tbody id="availRows"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Providers -->
-    <section class="view" data-view="providers">
-      <div class="toolbar">
-        <h2 style="margin:0">Providers</h2>
-        <span class="spacer"></span>
-        <span class="pill" id="providerCount">0</span>
-        <button class="action sm" id="addProviderBtn">+ Add Provider</button>
-      </div>
-      <div id="providerList"></div>
-    </section>
-
-    <!-- Virtual Models -->
-    <section class="view" data-view="vmodels">
-      <div class="toolbar">
-        <h2 style="margin:0">Virtual Models</h2>
-        <span class="spacer"></span>
-        <span class="pill" id="vmodelCount">0</span>
-        <button class="action sm" id="addVModelBtn">+ Add Virtual Model</button>
-      </div>
-      <div id="vmodelList"></div>
-    </section>
-
-    <!-- API Keys -->
-    <section class="view" data-view="keys">
-      <div class="toolbar">
-        <h2 style="margin:0">API Keys</h2>
-        <span class="spacer"></span>
-        <span class="pill" id="keyCount">0</span>
-        <button class="action sm" id="newKeyBtn">+ New Key</button>
-      </div>
-      <div id="keyList"></div>
-    </section>
-
-    <!-- Usage -->
-    <section class="view" data-view="usage">
-      <div class="toolbar">
-        <h2 style="margin:0">Usage Logs</h2>
-        <span class="spacer"></span>
-        <label style="margin:0">Time range
-          <select id="usageRange" style="width:auto;margin-top:4px">
-            <option value="3600000">Last hour</option>
-            <option value="86400000" selected>Last day</option>
-            <option value="604800000">Last 7 days</option>
-          </select>
-        </label>
-        <button class="action ghost sm" id="refreshUsage">Refresh</button>
-      </div>
-      <div class="card" style="padding:0; overflow:auto">
-        <table>
-          <thead><tr><th>Time</th><th>Virtual Model</th><th>Upstream</th><th>Protocol</th><th>Tokens</th><th>Cost</th><th>Cache</th><th>Status</th><th>Latency</th></tr></thead>
-          <tbody id="usageRows"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Settings -->
-    <section class="view" data-view="settings">
-      <div class="grid cols-2">
-        <div class="card">
-          <div class="card-header"><h2>Cache</h2></div>
-          <p>Live cache entries: <span class="stat" id="cacheSize" style="font-size:24px">-</span></p>
-          <div style="margin-top:12px">
-            <button class="action danger" id="clearCacheBtn">Clear Cache</button>
+    <main>
+      <!-- ============ 仪表盘 ============ -->
+      <section class="view active" v-show="currentView === 'dashboard'">
+        <div class="grid cols-4">
+          <div class="card" v-for="c in dashCardsTop" :key="c.label">
+            <div class="card-header"><h2>{{ c.label }}</h2></div>
+            <div class="stat">{{ c.value }}<span class="sub">{{ c.sub }}</span></div>
+          </div>
+          <div class="card" v-for="c in dashCardsBottom" :key="c.label">
+            <div class="card-header"><h2>{{ c.label }}</h2></div>
+            <div class="stat small">{{ c.value }}</div>
           </div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2>Metrics</h2></div>
-          <p>Prometheus endpoint:</p>
-          <pre><code>GET /admin/metrics</code></pre>
-          <p style="margin-top:12px">OpenTelemetry tracing enabled via <code>OTEL_EXPORTER_OTLP_ENDPOINT</code></p>
+        <div class="card" style="margin-top:16px">
+          <div class="card-header"><h2>最近 7 天 · 请求量趋势</h2></div>
+          <div ref="chartEl"></div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2>System</h2></div>
-          <p>Version: <strong>v0.1.0</strong></p>
-          <p>Data directory: <code>./data</code></p>
-          <p>Database: SQLite (WAL mode)</p>
+      </section>
+
+      <!-- ============ 可用性 ============ -->
+      <section class="view" v-show="currentView === 'availability'">
+        <div class="toolbar">
+          <span style="color:var(--text-dim)">共 {{ models.length }} 个模型</span>
+          <div class="spacer"></div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2>Keyboard Shortcuts</h2></div>
-          <p><kbd>R</kbd> — Refresh current view</p>
-          <p><kbd>1</kbd>-<kbd>7</kbd> — Navigate to section</p>
+        <div class="card" style="padding:0">
+          <div class="table-wrap">
+            <table v-if="models.length">
+              <thead><tr><th>提供方 ID</th><th>模型 ID</th><th>状态</th><th>P50 延迟</th><th>P95 延迟</th></tr></thead>
+              <tbody>
+                <tr v-for="m in models" :key="m.id">
+                  <td><code>{{ m.providerId }}</code></td>
+                  <td><strong>{{ m.modelId }}</strong></td>
+                  <td><span class="pill" :class="availClass(m.availability)">{{ availLabel(m.availability) }}</span></td>
+                  <td>{{ m.latencyMsP50 != null ? m.latencyMsP50 + ' ms' : '-' }}</td>
+                  <td>{{ m.latencyMsP95 != null ? m.latencyMsP95 + ' ms' : '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-else class="empty" style="margin:16px">暂无已配置的模型</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 提供方 ============ -->
+      <section class="view" v-show="currentView === 'providers'">
+        <div class="toolbar">
+          <span style="color:var(--text-dim)">共 {{ providers.length }} 个提供方</span>
+          <div class="spacer"></div>
+          <button class="btn" @click="openAddProvider">+ 添加提供方</button>
+        </div>
+        <div v-if="!providers.length" class="empty">尚未配置任何提供方，点击右上角「添加提供方」创建。</div>
+        <div class="card" v-for="p in providers" :key="p.id" style="margin-bottom:14px">
+          <div class="card-header">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <strong>{{ p.name }}</strong>
+              <span class="pill info">{{ protocolLabel(p.protocol) }}</span>
+              <span class="pill" :class="p.enabled ? 'ok' : 'err'">{{ p.enabled ? '已启用' : '已禁用' }}</span>
+            </div>
+            <div class="actions-row">
+              <button class="btn ghost sm" v-if="!p.enabled" @click="updateProvider(p.id, { enabled: true })">启用</button>
+              <button class="btn ghost sm" v-if="p.enabled" @click="updateProvider(p.id, { enabled: false })">禁用</button>
+              <button class="btn ghost sm" @click="openEditProvider(p)">编辑</button>
+              <button class="btn danger sm" @click="deleteProvider(p)">删除</button>
+            </div>
+          </div>
+          <div style="margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap">
+            <code>{{ p.baseUrl }}</code>
+            <span v-if="p.inputPrice != null || p.outputPrice != null" style="color:var(--text-muted);font-size:12px">
+              价格 {{ fmtPrice(p.inputPrice) }} / {{ fmtPrice(p.outputPrice) }} $/百万token（输入/输出）
+            </span>
+          </div>
+          <div v-if="!p.models.length" class="empty" style="padding:16px">
+            暂无模型。<a href="#" @click.prevent="openSyncModels(p)" style="color:var(--accent)">同步模型</a>
+          </div>
+          <div v-else class="table-wrap">
+            <table>
+              <thead><tr><th>模型 ID</th><th>显示名称</th><th>状态</th><th>上下文窗口</th><th>流式</th><th>工具调用</th></tr></thead>
+              <tbody>
+                <tr v-for="m in p.models" :key="m.id">
+                  <td><code>{{ m.modelId }}</code></td>
+                  <td>{{ m.displayName || '-' }}</td>
+                  <td><span class="pill" :class="availClass(m.availability)">{{ availLabel(m.availability) }}</span></td>
+                  <td>{{ m.contextWindow ? fmtInt(m.contextWindow) + ' tokens' : '-' }}</td>
+                  <td><span class="pill" :class="m.supportsStream ? 'ok' : ''">{{ m.supportsStream ? '支持' : '不支持' }}</span></td>
+                  <td><span class="pill" :class="m.supportsTools ? 'ok' : ''">{{ m.supportsTools ? '支持' : '不支持' }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="padding:10px 12px">
+              <button class="btn ghost sm" @click="openSyncModels(p)">重新同步模型</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 虚拟模型 ============ -->
+      <section class="view" v-show="currentView === 'vmodels'">
+        <div class="toolbar">
+          <span style="color:var(--text-dim)">共 {{ virtualModels.length }} 个虚拟模型</span>
+          <div class="spacer"></div>
+          <button class="btn" @click="openAddVModel">+ 添加虚拟模型</button>
+        </div>
+        <div v-if="!virtualModels.length" class="empty">尚未创建虚拟模型，点击右上角「添加虚拟模型」创建。</div>
+        <div class="card" style="padding:0" v-else>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>名称</th><th>路由策略</th><th>最大重试</th><th>创建时间</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr v-for="v in virtualModels" :key="v.id">
+                  <td><strong>{{ v.name }}</strong><br><code style="font-size:11px;color:var(--text-muted)">{{ v.id }}</code></td>
+                  <td><span class="pill info">{{ strategyLabel(v.strategy) }}</span></td>
+                  <td>{{ v.maxRetries }}</td>
+                  <td>{{ fmtRel(v.createdAt) }}</td>
+                  <td>
+                    <div class="actions-row">
+                      <button class="btn ghost sm" @click="openMembers(v)">成员管理</button>
+                      <button class="btn ghost sm" @click="openVMAvailability(v)">可用性</button>
+                      <button class="btn danger sm" @click="deleteVModel(v)">删除</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ API 密钥 ============ -->
+      <section class="view" v-show="currentView === 'keys'">
+        <div class="toolbar">
+          <span style="color:var(--text-dim)">共 {{ keys.length }} 个密钥</span>
+          <div class="spacer"></div>
+          <button class="btn" @click="openAddKey">+ 新建密钥</button>
+        </div>
+        <div v-if="!keys.length" class="empty">尚无 API 密钥，点击右上角「新建密钥」创建。客户端调用网关时使用该密钥鉴权。</div>
+        <div class="card" style="padding:0" v-else>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>名称</th><th>前缀</th><th>状态</th><th>预算 (日/月/总)</th><th>缓存</th><th>创建时间</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr v-for="k in keys" :key="k.id">
+                  <td><strong>{{ k.name }}</strong></td>
+                  <td><code>{{ k.prefix }}</code></td>
+                  <td><span class="pill" :class="k.status === 'active' ? 'ok' : 'err'">{{ keyStatusLabel(k.status) }}</span></td>
+                  <td>{{ budgetSummary(k) }}</td>
+                  <td><span class="pill" :class="k.cacheEnabled ? 'ok' : ''">{{ k.cacheEnabled ? '开启' : '关闭' }}</span></td>
+                  <td>{{ fmtRel(k.createdAt) }}</td>
+                  <td>
+                    <div class="actions-row">
+                      <button class="btn ghost sm" @click="resetBudget(k)">重置预算</button>
+                      <button class="btn danger sm" @click="deleteKey(k)">删除</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 用量日志 ============ -->
+      <section class="view" v-show="currentView === 'usage'">
+        <div class="toolbar">
+          <select v-model.number="usageRangeHours">
+            <option :value="1">最近 1 小时</option>
+            <option :value="24">最近 24 小时</option>
+            <option :value="168">最近 7 天</option>
+          </select>
+          <div class="spacer"></div>
+        </div>
+        <div class="card" style="padding:0">
+          <div class="table-wrap">
+            <table v-if="usageRecords.length">
+              <thead><tr><th>时间</th><th>模型</th><th>上游提供方</th><th>客户端协议</th><th>Tokens</th><th>费用</th><th>缓存命中</th><th>状态码</th><th>延迟</th></tr></thead>
+              <tbody>
+                <tr v-for="(u, i) in usageRecords" :key="i">
+                  <td>{{ fmtTime(u.created_at) }}</td>
+                  <td><code>{{ u.virtual_model_id || u.upstream_model_id || '-' }}</code></td>
+                  <td><code style="color:var(--text-muted)">{{ u.upstream_provider_id || '-' }}</code></td>
+                  <td><span class="pill">{{ clientProtocolLabel(u.client_protocol) }}</span></td>
+                  <td>{{ fmtInt(u.total_tokens) }}</td>
+                  <td>{{ fmtUsd(u.cost_usd) }}</td>
+                  <td>
+                    <span v-if="u.cache_hit && u.cache_hit !== 'none'" class="pill ok">{{ cacheHitLabel(u.cache_hit) }}</span>
+                    <span v-else class="pill">-</span>
+                  </td>
+                  <td><span class="pill" :class="u.status_code >= 200 && u.status_code < 400 ? 'ok' : 'err'">{{ u.status_code }}</span></td>
+                  <td>{{ u.latency_ms }} ms</td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-else class="empty" style="margin:16px">所选时间段内暂无请求记录</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 设置 ============ -->
+      <section class="view" v-show="currentView === 'settings'">
+        <div class="grid cols-4" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+          <div class="card">
+            <div class="card-header"><h2>缓存条目数</h2></div>
+            <div class="stat small">{{ cacheSize }}</div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h2>缓存管理</h2></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button class="btn danger sm" @click="clearCache">清空全部缓存</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h2>日志管理</h2></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button class="btn danger sm" @click="clearLogs">清空请求日志</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h2>Prometheus 指标</h2></div>
+            <pre>GET /admin/metrics</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============ 通用弹窗 ============ -->
+  <transition name="fade">
+    <div class="modal-overlay" v-if="modal.visible" @click.self="closeModal">
+      <div class="modal" style="min-height:120px" v-html="modal.html"></div>
+    </div>
+  </transition>
+
+  <!-- ============ Provider 编辑 ============ -->
+  <transition name="fade">
+    <div class="modal-overlay" v-if="editingProvider" @click.self="editingProvider = null">
+      <div class="modal">
+        <h3>编辑提供方</h3>
+        <form @submit.prevent="submitEditProvider">
+          <div class="form-row"><label>名称</label><input v-model.trim="editForm.name" required></div>
+          <div class="form-row"><label>协议</label>
+            <select v-model="editForm.protocol" required>
+              <option v-for="pt in protocols" :key="pt.value" :value="pt.value">{{ pt.label }}</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Base URL</label><input v-model.trim="editForm.baseUrl" required></div>
+          <div class="form-row">
+            <label>API Key</label>
+            <input v-model="editForm.apiKey" type="password" placeholder="留空则保留现有密钥">
+            <div class="field-hint">保存后立即以 AES-256-GCM 加密存储，且不再回显</div>
+          </div>
+          <div class="form-grid-2 form-row">
+            <div><label>输入价格 ($/百万token)</label><input v-model="editForm.inputPrice" type="number" step="any" min="0" placeholder="留空表示未设置"></div>
+            <div><label>输出价格 ($/百万token)</label><input v-model="editForm.outputPrice" type="number" step="any" min="0" placeholder="留空表示未设置"></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn ghost" @click="editingProvider = null">取消</button>
+            <button type="submit" class="btn">保存修改</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </transition>
+
+  <!-- ============ Provider 新建 ============ -->
+  <transition name="fade">
+    <div class="modal-overlay" v-if="addingProvider" @click.self="addingProvider = false">
+      <div class="modal">
+        <h3>添加提供方</h3>
+        <form @submit.prevent="submitAddProvider">
+          <div class="form-row"><label>名称</label><input v-model.trim="addForm.name" required placeholder="例如 OpenAI"></div>
+          <div class="form-row"><label>协议</label>
+            <select v-model="addForm.protocol" required>
+              <option v-for="pt in protocols" :key="pt.value" :value="pt.value">{{ pt.label }}</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Base URL</label><input v-model.trim="addForm.baseUrl" required placeholder="https://api.openai.com/v1"></div>
+          <div class="form-row"><label>API Key（可选）</label><input v-model="addForm.apiKey" type="password" placeholder="sk-..."></div>
+          <div class="form-grid-2 form-row">
+            <div><label>输入价格 ($/百万token)</label><input v-model="addForm.inputPrice" type="number" step="any" min="0"></div>
+            <div><label>输出价格 ($/百万token)</label><input v-model="addForm.outputPrice" type="number" step="any" min="0"></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn ghost" @click="addingProvider = false">取消</button>
+            <button type="submit" class="btn">创建提供方</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </transition>
+
+  <!-- ============ 同步模型 ============ -->
+  <transition name="fade">
+    <div class="modal-overlay" v-if="syncTarget" @click.self="syncTarget = null">
+      <div class="modal">
+        <h3>同步模型 — {{ syncTarget.name }}</h3>
+        <p style="color:var(--text-dim);margin-top:0">每行填写一个模型 ID，提交后完整替换该提供方的模型列表：</p>
+        <textarea v-model="syncModelsText" rows="7" style="margin-bottom:12px" placeholder="gpt-4o&#10;gpt-4o-mini&#10;o1-preview"></textarea>
+        <div class="modal-actions">
+          <button class="btn ghost" @click="syncTarget = null">取消</button>
+          <button class="btn" @click="submitSyncModels">同步 {{ syncModelCount > 0 ? '(' + syncModelCount + ' 个)' : '' }}</button>
         </div>
       </div>
-    </section>
-  </main>
+    </div>
+  </transition>
+
+  <!-- ============ 虚拟模型 新建 ============ -->
+  <transition name="fade">
+    <div class="modal-overlay" v-if="addingVModel" @click.self="addingVModel = false">
+      <div class="modal">
+        <h3>添加虚拟模型</h3>
+        <form @submit.prevent="submitAddVModel">
+          <div class="form-row"><label>名称</label><input v-model.trim="vmForm.name" required placeholder="例如 gpt-4o-cluster"></div>
+          <div class="form-row"><label>路由策略</label>
+            <select v-model="vmForm.strategy" required>
+              <option value="RoundRobin">轮询 (Round Robin)</option>
+              <option value="WeightedRandom">加权随机 (Weighted Random)</option>
+              <option value="Failover">故障转移 (Failover)</option>
+              <option value="LowestLatency">最低延迟 (Lowest Latency)</option>
+            </select>
+          </div>
+          <div class="form-row"><label>最大重试次数</label><input v-model.number="vmForm.maxRetries" type="number" min="0" max="10"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn ghost" @click="addingVModel = false">取消</button>
+            <button type="submit" class="btn">创建</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </transition>
+
+  <!-- ============ 成员管理 ============ -->
+  <transition name="fade">
+    <div class="modal-overlay" v-if="membersModal.vm" @click.self="membersModal.vm = null">
+      <div class="modal" style="max-width:720px">
+        <h3>成员管理 — {{ membersModal.vm.name }}</h3>
+        <div v-if="membersModal.loading" class="empty" style="padding:24px">加载中…</div>
+        <template v-else>
+          <div v-if="!membersModal.members.length" class="empty" style="padding:24px;margin-bottom:12px">暂无成员，请先在「提供方」页为上游配置模型，再在此添加成员。</div>
+          <div class="table-wrap" v-else style="margin-bottom:12px">
+            <table>
+              <thead><tr><th>提供方</th><th>模型</th><th>权重</th><th>优先级</th><th>状态</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="m in membersModal.members" :key="m.upstream_model_id">
+                  <td><code>{{ m.provider_name }}</code></td>
+                  <td><strong>{{ m.model_id }}</strong></td>
+                  <td>{{ m.weight }}</td>
+                  <td>{{ m.priority }}</td>
+                  <td><span class="pill" :class="availClass(m.availability)">{{ availLabel(m.availability) }}</span></td>
+                  <td><button class="btn danger sm" @click="removeMember(m)">移除</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <form @submit.prevent="submitAddMember" style="border-top:1px solid var(--border);padding-top:14px" v-if="memberCandidates.length">
+            <div class="form-row"><label>选择要添加的上游模型</label>
+              <select v-model="memberForm.upstreamModelId" required>
+                <option v-for="c in memberCandidates" :key="c.value" :value="c.value">{{ c.label }}</option>
+              </select>
+            </div>
+            <div class="form-grid-2 form-row">
+              <div><label>权重</label><input v-model.number="memberForm.weight" type="number" min="1"></div>
+              <div><label>优先级</label><input v-model.number="memberForm.priority" type="number" min="1"></div>
+            </div>
+            <div class="modal-actions">
+              <button type="submit" class="btn">添加成员</button>
+            </div>
+          </form>
+        </template>
+        <div class="modal-actions" style="margin-top:16px">
+          <button class="btn ghost" @click="membersModal.vm = null">关闭</button>
+        </div>
+      </div>
+    </div>
+  </transition>
+
+  <!-- ============ 虚拟模型可用性 ============ -->
+  <transition name="fade">
+    <div class="modal-overlay" v-if="availModal.vm" @click.self="availModal.vm = null">
+      <div class="modal" style="max-width:640px">
+        <h3>可用性 — {{ availModal.vm.name }}</h3>
+        <div v-if="availModal.loading" class="empty" style="padding:24px">加载中…</div>
+        <div v-else-if="!availModal.members.length" class="empty" style="padding:24px">暂无成员</div>
+        <div class="table-wrap" v-else>
+          <table>
+            <thead><tr><th>提供方</th><th>模型</th><th>状态</th><th>P50</th><th>P95</th></tr></thead>
+            <tbody>
+              <tr v-for="(m, i) in availModal.members" :key="i">
+                <td><code>{{ m.provider_name }}</code></td>
+                <td><strong>{{ m.model_id }}</strong></td>
+                <td><span class="pill" :class="availClass(m.availability)">{{ availLabel(m.availability) }}</span></td>
+                <td>{{ m.latency_ms_p50 != null ? m.latency_ms_p50 + ' ms' : '-' }}</td>
+                <td>{{ m.latency_ms_p95 != null ? m.latency_ms_p95 + ' ms' : '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-actions" style="margin-top:16px">
+          <button class="btn ghost" @click="availModal.vm = null">关闭</button>
+        </div>
+      </div>
+    </div>
+  </transition>
+
+  <!-- ============ 新建密钥 ============ -->
+  <transition name="fade">
+    <div class="modal-overlay" v-if="addingKey" @click.self="closeAddKey">
+      <div class="modal">
+        <h3>新建 API 密钥</h3>
+        <form @submit.prevent="submitAddKey">
+          <div class="form-row"><label>名称</label><input v-model.trim="keyForm.name" required placeholder="例如 my-app-prod"></div>
+          <div class="form-grid-2 form-row">
+            <div><label>日预算 ($) - 可选</label><input v-model="keyForm.budgetDailyUsd" type="number" step="any" min="0"></div>
+            <div><label>月预算 ($) - 可选</label><input v-model="keyForm.budgetMonthlyUsd" type="number" step="any" min="0"></div>
+          </div>
+          <div class="form-row"><label>总额度 ($) - 可选</label><input v-model="keyForm.budgetTotalUsd" type="number" step="any" min="0"></div>
+          <div class="form-row">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" v-model="keyForm.cacheEnabled" style="width:auto"> 启用响应缓存
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn ghost" @click="closeAddKey">取消</button>
+            <button type="submit" class="btn">创建密钥</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </transition>
+
+  <!-- ============ 密钥创建成功回显 ============ -->
+  <transition name="fade">
+    <div class="modal-overlay" v-if="createdKeyValue" @click.self="createdKeyValue = null">
+      <div class="modal">
+        <h3>密钥已创建</h3>
+        <p style="color:var(--text-dim)">请立即复制保存以下密钥，关闭后将无法再次查看：</p>
+        <div style="display:flex;gap:8px">
+          <input readonly :value="createdKeyValue" ref="createdKeyInput" @focus="$event.target.select()" style="flex:1;font-family:ui-monospace,monospace">
+          <button class="btn sm" @click="copyCreatedKey" style="width:auto">{{ copiedKey ? '已复制' : '复制' }}</button>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" @click="createdKeyValue = null">我已保存</button>
+        </div>
+      </div>
+    </div>
+  </transition>
+
+  <!-- Toast -->
+  <div class="toast-container">
+    <transition-group name="toast">
+      <div v-for="t in toasts" :key="t.id" class="toast" :class="t.kind">{{ t.msg }}</div>
+    </transition-group>
+  </div>
 </div>
 
-<!-- Modals -->
-<div id="modalOverlay" class="modal-overlay" style="display:none">
-  <div class="modal" id="modalContent"></div>
-</div>
-
-<div id="toastContainer"></div>
-
+<script src="/admin/vendor/vue.global.prod.js"></script>
 <script>
 (() => {
-  const $ = (s, el = document) => el.querySelector(s);
-  const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+  const { createApp, ref, reactive, computed, watch, onMounted, nextTick } = Vue;
 
-  const FORMATS = {
-    int: n => n == null ? '-' : Number(n).toLocaleString('en-US'),
-    usd: n => n == null ? '-' : '$' + Number(n).toFixed(4),
-    pct: n => (n * 100).toFixed(1) + '%',
-    time: ms => new Date(ms).toLocaleString(),
-    rel: ms => {
-      const d = Date.now() - ms;
-      if (d < 60_000) return Math.floor(d / 1000) + 's ago';
-      if (d < 3_600_000) return Math.floor(d / 60_000) + 'm ago';
-      if (d < 86_400_000) return Math.floor(d / 3_600_000) + 'h ago';
-      return Math.floor(d / 86_400_000) + 'd ago';
-    },
-  };
+  createApp({
+    setup() {
+      // ---------- 导航 ----------
+      const navGroups = [
+        { label: '概览', items: [
+          { id: 'dashboard', icon: '📊', label: '仪表盘' },
+          { id: 'availability', icon: '🔍', label: '可用性' },
+        ]},
+        { label: '配置', items: [
+          { id: 'providers', icon: '🔌', label: '提供方' },
+          { id: 'vmodels', icon: '🎯', label: '虚拟模型' },
+          { id: 'keys', icon: '🔑', label: 'API 密钥' },
+        ]},
+        { label: '监控', items: [
+          { id: 'usage', icon: '📈', label: '用量日志' },
+          { id: 'settings', icon: '⚙️', label: '设置' },
+        ]},
+      ];
+      const viewTitles = {};
+      for (const g of navGroups) for (const it of g.items) viewTitles[it.id] = it.label;
 
-  const VIEWS = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'availability', label: 'Availability' },
-    { id: 'providers', label: 'Providers' },
-    { id: 'vmodels', label: 'Virtual Models' },
-    { id: 'keys', label: 'API Keys' },
-    { id: 'usage', label: 'Usage Logs' },
-    { id: 'settings', label: 'Settings' },
-  ];
+      const validViews = new Set(Object.keys(viewTitles));
+      const initialView = (() => {
+        const h = location.hash.replace(/^#\/?/, '');
+        return validViews.has(h) ? h : 'dashboard';
+      })();
 
-  // Navigation
-  function setView(id) {
-    $$('.view').forEach(v => v.classList.toggle('active', v.dataset.view === id));
-    $$('#sidebarNav button').forEach(b => b.classList.toggle('active', b.dataset.view === id));
-    const info = VIEWS.find(v => v.id === id);
-    $('#pageTitle').textContent = info ? info.label : 'Dashboard';
-    if (location.hash !== '#' + id) location.hash = id;
-    loadView(id);
-  }
+      const currentView = ref(initialView);
+      const sidebarOpen = ref(false);
+      const serverOnline = ref(true);
+      const currentViewInfo = computed(() => ({ label: viewTitles[currentView.value] }));
 
-  function currentView() {
-    const h = location.hash.replace('#', '');
-    return VIEWS.some(v => v.id === h) ? h : 'dashboard';
-  }
+      function switchView(id) {
+        currentView.value = id;
+        if (location.hash !== '#/' + id) history.replaceState(null, '', '#/' + id);
+        sidebarOpen.value = false;
+      }
+      window.addEventListener('hashchange', () => {
+        const h = location.hash.replace(/^#\/?/, '');
+        if (validViews.has(h)) currentView.value = h;
+      });
 
-  $('#sidebarNav').addEventListener('click', e => {
-    const btn = e.target.closest('button[data-view]');
-    if (btn) setView(btn.dataset.view);
-  });
-
-  $('#refreshBtn').addEventListener('click', () => loadView(currentView()));
-  document.addEventListener('keydown', e => {
-    if (e.key === 'r' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
-      loadView(currentView());
-    }
-    const num = parseInt(e.key);
-    if (num >= 1 && num <= VIEWS.length) {
-      setView(VIEWS[num - 1].id);
-    }
-  });
-
-  // API
-  async function api(path, opts = {}) {
-    const res = await fetch('/admin/api' + path, {
-      method: opts.method || 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`${res.status}: ${text}`);
-    }
-    return res.json();
-  }
-
-  function toast(msg, kind) {
-    const t = document.createElement('div');
-    t.className = 'toast' + (kind ? ' ' + kind : '');
-    t.textContent = msg;
-    $('#toastContainer').appendChild(t);
-    setTimeout(() => t.remove(), 3500);
-  }
-
-  function escape(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-
-  // Modal
-  function openModal(html) {
-    $('#modalContent').innerHTML = html;
-    $('#modalOverlay').style.display = 'flex';
-  }
-  function closeModal() {
-    $('#modalOverlay').style.display = 'none';
-  }
-  $('#modalOverlay').addEventListener('click', e => {
-    if (e.target === $('#modalOverlay')) closeModal();
-  });
-
-  // ---- Dashboard ----
-  async function loadDashboard() {
-    const stats = await api('/stats');
-    $('#dashCards').innerHTML = [
-      { label: 'Requests (24h)', value: FORMATS.int(stats.today.requests) },
-      { label: 'Tokens (24h)', value: FORMATS.int(stats.today.totalTokens) },
-      { label: 'Cost (24h)', value: FORMATS.usd(stats.today.costUsd), sub: 'USD' },
-      { label: 'Cache hit rate', value: FORMATS.pct(stats.cacheHitRate), sub: 'last 7d' },
-    ].map(c => `
-      <div class="card">
-        <div class="card-header"><h2>${c.label}</h2></div>
-        <div class="stat">${c.value}<span class="sub">${c.sub || ''}</span></div>
-      </div>`).join('') + [
-      { label: 'Virtual Models', value: stats.virtualModels },
-      { label: 'Active Keys', value: stats.keys },
-      { label: 'Cache Entries', value: stats.cacheSize },
-      { label: 'Server Time', value: '', sub: FORMATS.time(stats.timestamp) },
-    ].map(c => `
-      <div class="card">
-        <div class="card-header"><h2>${c.label}</h2></div>
-        <div class="stat" style="font-size:${c.value ? 32 : 18}px">${c.value || c.sub}</div>
-      </div>`).join('');
-
-    renderChart('series', stats.series7d || []);
-  }
-
-  // ---- Chart rendering ----
-  function renderChart(containerId, data) {
-    const container = document.getElementById(containerId);
-    if (!container || data.length === 0) {
-      container.innerHTML = '<div class="empty">No data</div>';
-      return;
-    }
-
-    const max = Math.max(1, ...data.map(d => d.requestCount));
-    const dpr = window.devicePixelRatio || 1;
-    const width = container.clientWidth || 600;
-    const height = 120;
-    const padding = { top: 10, right: 10, bottom: 30, left: 40 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    canvas.style.width = '100%';
-    canvas.style.height = height + 'px';
-    container.innerHTML = '';
-    container.appendChild(canvas);
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.scale(dpr, dpr);
-
-    const barWidth = (chartWidth / data.length) * 0.6;
-    const barGap = (chartWidth / data.length) * 0.4;
-
-    // Draw grid lines
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i = 0; i <= 4; i++) {
-      const y = padding.top + (chartHeight / 4) * i;
-      ctx.moveTo(padding.left, y);
-      ctx.lineTo(width - padding.right, y);
-    }
-    ctx.stroke();
-
-    // Draw bars
-    data.forEach((d, i) => {
-      const barHeight = (d.requestCount / max) * chartHeight;
-      const x = padding.left + i * (barWidth + barGap) + barGap / 2;
-      const y = padding.top + chartHeight - barHeight;
-
-      ctx.fillStyle = '#3b82f6';
-      ctx.beginPath();
-      if (barHeight > 0) {
-        ctx.roundRect(x, y, barWidth, barHeight, [4, 4, 0, 0]);
-        ctx.fill();
+      // ---------- 工具函数 ----------
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+      function fmtInt(n) { return Number(n ?? 0).toLocaleString('zh-CN'); }
+      function fmtUsd(n) { return '$' + Number(n ?? 0).toFixed(4); }
+      function fmtPct(n) { return (Number(n ?? 0) * 100).toFixed(1) + '%'; }
+      function fmtPrice(n) { return n == null ? '-' : '$' + n; }
+      function fmtTime(ts) { return ts ? new Date(Number(ts)).toLocaleString('zh-CN', { hour12: false }) : '-'; }
+      function fmtRel(ts) {
+        if (!ts) return '-';
+        const diff = Date.now() - Number(ts);
+        if (diff < 60_000) return '刚刚';
+        if (diff < 3_600_000) return Math.floor(diff / 60_000) + ' 分钟前';
+        if (diff < 86_400_000) return Math.floor(diff / 3_600_000) + ' 小时前';
+        return new Date(Number(ts)).toLocaleDateString('zh-CN');
+      }
+      const PROTOCOL_LABELS = { OpenAI: 'OpenAI 官方', 'OpenAI-Compatible': 'OpenAI 兼容', Anthropic: 'Anthropic', Gemini: 'Google Gemini', Doubao: '字节豆包', Wenxin: '百度文心' };
+      const STRATEGY_LABELS = { RoundRobin: '轮询', WeightedRandom: '加权随机', Failover: '故障转移', LowestLatency: '最低延迟' };
+      const AVAIL_LABELS = { available: '可用', degraded: '降级', unavailable: '不可用' };
+      const CACHE_LABELS = { exact: '精确命中', semantic: '语义命中', continuation: '续写命中' };
+      const KEY_STATUS = { active: '正常', disabled: '已停用', exhausted: '额度耗尽' };
+      const CLIENT_PROTOCOLS = { 'openai-chat': 'OpenAI Chat', 'openai-responses': 'OpenAI Responses', 'anthropic': 'Anthropic Messages', 'gemini': 'Gemini GenerateContent' };
+      function protocolLabel(v) { return PROTOCOL_LABELS[v] ?? v; }
+      function strategyLabel(v) { return STRATEGY_LABELS[v] ?? v; }
+      function availLabel(v) { return AVAIL_LABELS[v] ?? v; }
+      function availClass(v) { return v === 'available' ? 'ok' : v === 'degraded' ? 'warn' : 'err'; }
+      function cacheHitLabel(v) { return CACHE_LABELS[v] ?? v; }
+      function keyStatusLabel(v) { return KEY_STATUS[v] ?? v; }
+      function clientProtocolLabel(v) { return CLIENT_PROTOCOLS[v] ?? v; }
+      function budgetSummary(k) {
+        const parts = [];
+        if (k.budgetDailyUsd != null) parts.push('$' + k.budgetDailyUsd + '/日');
+        if (k.budgetMonthlyUsd != null) parts.push('$' + k.budgetMonthlyUsd + '/月');
+        if (k.budgetTotalUsd != null) parts.push('$' + k.budgetTotalUsd + '/总');
+        return parts.join(' / ') || '未设置';
       }
 
-      // X-axis labels
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      const date = new Date(d.bucket);
-      const label = `${date.getMonth() + 1}/${date.getDate()}`;
-      ctx.fillText(label, x + barWidth / 2, height - 8);
-    });
-
-    // Y-axis labels
-    ctx.textAlign = 'right';
-    for (let i = 0; i <= 4; i++) {
-      const value = Math.round((max / 4) * (4 - i));
-      const y = padding.top + (chartHeight / 4) * i;
-      ctx.fillText(value.toString(), padding.left - 8, y + 4);
-    }
-  }
-
-  // ---- Availability ----
-  async function loadAvailability() {
-    const r = await api('/availability');
-    if (!r.models || r.models.length === 0) {
-      $('#availRows').innerHTML = '<tr><td colspan="5" class="empty">No provider models configured</td></tr>';
-      return;
-    }
-    $('#availRows').innerHTML = r.models.map(m => {
-      const pillClass = m.availability === 'available' ? 'ok' : m.availability === 'degraded' ? 'warn' : 'err';
-      return `<tr>
-        <td><code>${escape(m.providerId)}</code></td>
-        <td><strong>${escape(m.modelId)}</strong></td>
-        <td><span class="pill ${pillClass}">${m.availability}</span></td>
-        <td>${m.latencyMsP50 != null ? m.latencyMsP50 + 'ms' : '-'}</td>
-        <td>${m.latencyMsP95 != null ? m.latencyMsP95 + 'ms' : '-'}</td>
-      </tr>`;
-    }).join('');
-  }
-  $('#refreshAvail').addEventListener('click', loadAvailability);
-
-  // ---- Providers ----
-  async function loadProviders() {
-    const r = await api('/providers');
-    $('#providerCount').textContent = r.providers.length;
-    if (r.providers.length === 0) {
-      $('#providerList').innerHTML = '<div class="empty">No providers configured. Click "+ Add Provider" to create one.</div>';
-      return;
-    }
-    $('#providerList').innerHTML = r.providers.map(p => `
-      <div class="card" style="margin-bottom:14px">
-        <div class="card-header">
-          <div style="display:flex;align-items:center;gap:10px">
-            <strong>${escape(p.name)}</strong>
-            <span class="pill">${escape(p.protocol)}</span>
-            <span class="pill ${p.enabled ? 'ok' : 'err'}">${p.enabled ? 'Enabled' : 'Disabled'}</span>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button class="action ghost sm edit-provider" data-id="${escape(p.id)}">Edit</button>
-            <button class="action danger sm delete-provider" data-id="${escape(p.id)}" data-name="${escape(p.name)}">Delete</button>
-          </div>
-        </div>
-        <div style="margin-bottom:12px">
-          <code style="color:var(--text-muted)">${escape(p.baseUrl || '')}</code>
-        </div>
-        ${p.models.length === 0 ? '<div class="empty" style="padding:16px">No models. <a href="#" class="sync-models" data-id="${escape(p.id)}" style="color:var(--accent)">Sync models</a></div>' : `
-        <table>
-          <thead><tr><th>Model ID</th><th>Display Name</th><th>Availability</th><th>Context</th><th>Stream</th><th>Tools</th></tr></thead>
-          <tbody>${p.models.map(m => `
-            <tr>
-              <td><code>${escape(m.modelId)}</code></td>
-              <td>${escape(m.displayName || '-')}</td>
-              <td><span class="pill ${m.availability === 'available' ? 'ok' : m.availability === 'degraded' ? 'warn' : 'err'}">${m.availability}</span></td>
-              <td>${m.contextWindow ? FORMATS.int(m.contextWindow) + ' tokens' : '-'}</td>
-              <td>${m.supportsStream ? '<span class="pill ok">Yes</span>' : '<span class="pill">No</span>'}</td>
-              <td>${m.supportsTools ? '<span class="pill ok">Yes</span>' : '<span class="pill">No</span>'}</td>
-            </tr>`).join('')}</tbody>
-        </table>`}
-      </div>`).join('');
-
-    $$('button.delete-provider').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm(`Delete provider "${btn.dataset.name}"?`)) return;
+      // ---------- API ----------
+      async function api(path, opts = {}) {
+        let res;
         try {
-          await api('/providers/' + btn.dataset.id, { method: 'DELETE' });
-          toast('Provider deleted', 'ok');
-          loadProviders();
-        } catch (e) { toast(e.message, 'err'); }
-      });
-    });
-
-    $$('button.edit-provider').forEach(btn => {
-      btn.addEventListener('click', () => openEditProvider(btn.dataset.id));
-    });
-
-    $$('a.sync-models').forEach(a => {
-      a.addEventListener('click', e => {
-        e.preventDefault();
-        openSyncModels(a.dataset.id);
-      });
-    });
-  }
-  $('#addProviderBtn').addEventListener('click', () => openAddProvider());
-
-  function openAddProvider() {
-    openModal(`
-      <h3>Add Provider</h3>
-      <form id="addProviderForm" class="inline" style="flex-direction:column;align-items:stretch">
-        <div class="form-row"><label>Name</label><input name="name" required placeholder="OpenAI"></div>
-        <div class="form-row"><label>Protocol</label>
-          <select name="protocol" required>
-            <option value="OpenAI">OpenAI</option>
-            <option value="OpenAI-Compatible">OpenAI-Compatible</option>
-            <option value="Anthropic">Anthropic</option>
-            <option value="Gemini">Gemini</option>
-            <option value="Doubao">Doubao</option>
-            <option value="Wenxin">Wenxin</option>
-          </select>
-        </div>
-        <div class="form-row"><label>Base URL</label><input name="baseUrl" required placeholder="https://api.openai.com/v1"></div>
-        <div class="form-row"><label>API Key (optional)</label><input name="apiKey" type="password" placeholder="sk-..."></div>
-        <div class="form-row" style="display:flex;gap:12px">
-          <div style="flex:1"><label>Input Price ($/MTok)</label><input name="inputPrice" type="number" step="0.000001"></div>
-          <div style="flex:1"><label>Output Price ($/MTok)</label><input name="outputPrice" type="number" step="0.000001"></div>
-        </div>
-        <div class="form-actions">
-          <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="action">Create Provider</button>
-        </div>
-      </form>
-    `);
-    $('#addProviderForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const body = {};
-      for (const [k, v] of fd) {
-        if (v) body[k] = v;
+          res = await fetch('/admin/api' + path, {
+            method: opts.method || 'GET',
+            headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,
+            body: opts.body ? JSON.stringify(opts.body) : undefined,
+          });
+        } catch {
+          serverOnline.value = false;
+          throw new Error('网络错误，服务器可能已离线');
+        }
+        if (!res.ok) {
+          let msg = `请求失败 (${res.status})`;
+          try {
+            const j = await res.json();
+            if (j.error) msg = j.error;
+          } catch { /* ignore */ }
+          throw new Error(msg);
+        }
+        const data = await res.json();
+        serverOnline.value = true;
+        if (data && typeof data === 'object' && data.error) throw new Error(data.error);
+        return data;
       }
-      try {
-        await api('/providers', { method: 'POST', body });
-        toast('Provider created', 'ok');
-        closeModal();
-        loadProviders();
-      } catch (err) { toast(err.message, 'err'); }
-    });
-  }
 
-  function openEditProvider(id) {
-    api('/providers').then(r => {
-      const p = r.providers.find(x => x.id === id);
-      if (!p) return;
-      openModal(`
-        <h3>Edit Provider</h3>
-        <form id="editProviderForm" class="inline" style="flex-direction:column;align-items:stretch">
-          <div class="form-row"><label>Name</label><input name="name" value="${escape(p.name)}" required></div>
-          <div class="form-row"><label>Protocol</label>
-            <select name="protocol" required>
-              <option value="OpenAI" ${p.protocol === 'OpenAI' ? 'selected' : ''}>OpenAI</option>
-              <option value="OpenAI-Compatible" ${p.protocol === 'OpenAI-Compatible' ? 'selected' : ''}>OpenAI-Compatible</option>
-              <option value="Anthropic" ${p.protocol === 'Anthropic' ? 'selected' : ''}>Anthropic</option>
-              <option value="Gemini" ${p.protocol === 'Gemini' ? 'selected' : ''}>Gemini</option>
-              <option value="Doubao" ${p.protocol === 'Doubao' ? 'selected' : ''}>Doubao</option>
-              <option value="Wenxin" ${p.protocol === 'Wenxin' ? 'selected' : ''}>Wenxin</option>
-            </select>
-          </div>
-          <div class="form-row"><label>Base URL</label><input name="baseUrl" value="${escape(p.baseUrl)}" required></div>
-          <div class="form-row"><label>API Key (leave blank to keep current)</label><input name="apiKey" type="password" placeholder="sk-..."></div>
-          <div class="form-row" style="display:flex;gap:12px">
-            <div style="flex:1"><label>Input Price ($/MTok, empty = unset)</label><input name="inputPrice" type="number" step="0.000001" value="${p.inputPrice ?? ''}"></div>
-            <div style="flex:1"><label>Output Price ($/MTok, empty = unset)</label><input name="outputPrice" type="number" step="0.000001" value="${p.outputPrice ?? ''}"></div>
-          </div>
-          <div class="form-actions">
-            <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
-            <button type="submit" class="action">Save Changes</button>
-          </div>
-        </form>
-      `);
-      $('#editProviderForm').addEventListener('submit', async e => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const body = {};
-        for (const [k, v] of fd) {
-          if (k === 'apiKey') {
-            // Empty apiKey means "keep current": omit the field entirely
-            if (v !== '') body[k] = v;
-          } else {
-            // All other fields are always sent; empty string clears prices, server validates required text fields
-            body[k] = v;
+      // ---------- Toast ----------
+      const toasts = ref([]);
+      let toastSeq = 0;
+      function toast(msg, kind = 'ok') {
+        const id = ++toastSeq;
+        toasts.value.push({ id, msg, kind });
+        setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 3500);
+      }
+
+      // ---------- 数据 ----------
+      const stats = ref({});
+      const models = ref([]);
+      const providers = ref([]);
+      const virtualModels = ref([]);
+      const keys = ref([]);
+      const usageRecords = ref([]);
+      const usageRangeHours = ref(24);
+      const cacheSize = ref(0);
+
+      async function loadDashboard() {
+        stats.value = await api('/stats');
+        drawChart();
+      }
+      async function loadAvailability() { models.value = (await api('/availability')).models ?? []; }
+      async function loadProviders() { providers.value = (await api('/providers')).providers ?? []; }
+      async function loadVModels() { virtualModels.value = (await api('/virtual-models')).virtualModels ?? []; }
+      async function loadKeys() { keys.value = (await api('/keys')).keys ?? []; }
+      async function loadUsage() {
+        const sinceMs = Date.now() - usageRangeHours.value * 3600_000;
+        usageRecords.value = (await api(`/usage?sinceMs=${sinceMs}&limit=100`)).records ?? [];
+      }
+      async function loadSettings() {
+        try { cacheSize.value = (await api('/cache/size')).size ?? 0; } catch { /* ignore */ }
+      }
+
+      const loaders = {
+        dashboard: loadDashboard,
+        availability: loadAvailability,
+        providers: loadProviders,
+        vmodels: loadVModels,
+        keys: loadKeys,
+        usage: loadUsage,
+        settings: loadSettings,
+      };
+      async function reloadCurrent() {
+        try { await loaders[currentView.value](); }
+        catch (e) { toast(e.message, 'err'); }
+      }
+      watch(currentView, () => reloadCurrent());
+      watch(usageRangeHours, () => loadUsage().catch(e => toast(e.message, 'err')));
+
+      // ---------- Dashboard 卡片 ----------
+      const dashCardsTop = computed(() => [
+        { label: '请求数 (24小时)', value: fmtInt(stats.value.today?.requests), sub: '近一天' },
+        { label: 'Token 数 (24小时)', value: fmtInt(stats.value.today?.totalTokens), sub: '输入 + 输出' },
+        { label: '费用 (24小时)', value: fmtUsd(stats.value.today?.costUsd), sub: 'USD' },
+        { label: '缓存命中率', value: fmtPct(stats.value.cacheHitRate), sub: '近 7 天' },
+      ]);
+      const dashCardsBottom = computed(() => [
+        { label: '虚拟模型数', value: String(stats.value.virtualModels ?? '-') },
+        { label: '活跃密钥数', value: String(stats.value.keys ?? '-') },
+        { label: '缓存条目数', value: fmtInt(stats.value.cacheSize) },
+        { label: '提供方数量', value: String(providers.value.length) },
+      ]);
+
+      // ---------- 图表 ----------
+      const chartEl = ref(null);
+      function drawChart() {
+        const container = chartEl.value;
+        if (!container) return;
+        const data = stats.value.series7d ?? [];
+        if (!data.length) { container.innerHTML = '<div class="empty">暂无数据</div>'; return; }
+
+        const max = Math.max(1, ...data.map(d => d.requestCount));
+        const dpr = window.devicePixelRatio || 1;
+        const width = container.clientWidth || 600;
+        const height = 140;
+        const padding = { top: 12, right: 12, bottom: 32, left: 44 };
+        const chartWidth = width - padding.left - padding.right;
+        const chartHeight = height - padding.top - padding.bottom;
+
+        container.innerHTML = '';
+        const canvas = document.createElement('canvas');
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = '100%';
+        canvas.style.height = height + 'px';
+        container.appendChild(canvas);
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.scale(dpr, dpr);
+
+        const barUnit = chartWidth / data.length;
+        const barWidth = barUnit * 0.6;
+
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= 4; i++) {
+          const y = padding.top + (chartHeight / 4) * i;
+          ctx.moveTo(padding.left, y);
+          ctx.lineTo(width - padding.right, y);
+        }
+        ctx.stroke();
+
+        data.forEach((d, i) => {
+          const barHeight = (d.requestCount / max) * chartHeight;
+          const x = padding.left + i * barUnit + (barUnit - barWidth) / 2;
+          const y = padding.top + chartHeight - barHeight;
+          ctx.fillStyle = '#3b82f6';
+          if (barHeight > 0) {
+            ctx.beginPath();
+            if (ctx.roundRect) { ctx.roundRect(x, y, barWidth, barHeight, [4, 4, 0, 0]); ctx.fill(); }
+            else { ctx.rect(x, y, barWidth, barHeight); ctx.fill(); }
+          }
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'center';
+          const date = new Date(d.bucket);
+          ctx.fillText(`${date.getMonth() + 1}/${date.getDate()}`, x + barWidth / 2, height - 12);
+        });
+
+        ctx.textAlign = 'right';
+        for (let i = 0; i <= 4; i++) {
+          const value = Math.round((max / 4) * (4 - i));
+          const y = padding.top + (chartHeight / 4) * i;
+          ctx.fillText(String(value), padding.left - 8, y + 4);
+        }
+      }
+
+      let resizeTimer;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (currentView.value === 'dashboard') drawChart();
+        }, 200);
+      });
+
+      // ---------- 弹窗（旧版通用） ----------
+      const modal = reactive({ visible: false, html: '' });
+      function closeModal() { modal.visible = false; }
+
+      // ---------- 提供方 ----------
+      const protocols = [
+        { value: 'OpenAI', label: 'OpenAI 官方' },
+        { value: 'OpenAI-Compatible', label: 'OpenAI 兼容中转' },
+        { value: 'Anthropic', label: 'Anthropic' },
+        { value: 'Gemini', label: 'Google Gemini' },
+        { value: 'Doubao', label: '字节豆包 Ark' },
+        { value: 'Wenxin', label: '百度文心千帆' },
+      ];
+
+      const addingProvider = ref(false);
+      const addForm = reactive({ name: '', protocol: 'OpenAI', baseUrl: '', apiKey: '', inputPrice: '', outputPrice: '' });
+      function openAddProvider() {
+        Object.assign(addForm, { name: '', protocol: 'OpenAI', baseUrl: '', apiKey: '', inputPrice: '', outputPrice: '' });
+        addingProvider.value = true;
+      }
+      async function submitAddProvider() {
+        const body = { name: addForm.name, protocol: addForm.protocol, baseUrl: addForm.baseUrl };
+        if (addForm.apiKey) body.apiKey = addForm.apiKey;
+        if (addForm.inputPrice !== '') body.inputPrice = addForm.inputPrice;
+        if (addForm.outputPrice !== '') body.outputPrice = addForm.outputPrice;
+        try {
+          await api('/providers', { method: 'POST', body });
+          toast('提供方创建成功');
+          addingProvider.value = false;
+          await loadProviders();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+
+      const editingProvider = ref(null);
+      const editForm = reactive({ name: '', protocol: '', baseUrl: '', apiKey: '', inputPrice: '', outputPrice: '' });
+      function openEditProvider(p) {
+        Object.assign(editForm, {
+          name: p.name,
+          protocol: p.protocol,
+          baseUrl: p.baseUrl,
+          apiKey: '',
+          inputPrice: p.inputPrice ?? '',
+          outputPrice: p.outputPrice ?? '',
+        });
+        editingProvider.value = p.id;
+      }
+      async function submitEditProvider() {
+        const body = { name: editForm.name, protocol: editForm.protocol, baseUrl: editForm.baseUrl };
+        if (editForm.apiKey) body.apiKey = editForm.apiKey;
+        body.inputPrice = editForm.inputPrice === '' ? null : editForm.inputPrice;
+        body.outputPrice = editForm.outputPrice === '' ? null : editForm.outputPrice;
+        try {
+          const result = await api('/providers/' + editingProvider.value, { method: 'PATCH', body });
+          toast(result.warning ? '已更新，但密钥未能更换：未配置主加密密钥' : '提供方已更新', result.warning ? 'err' : 'ok');
+          editingProvider.value = null;
+          await loadProviders();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+
+      async function updateProvider(id, patch) {
+        try {
+          await api('/providers/' + id, { method: 'PATCH', body: patch });
+          toast('提供方已更新');
+          await loadProviders();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+
+      async function deleteProvider(p) {
+        if (!confirm(`确定删除提供方「${p.name}」吗？其关联的模型与成员关系将一并移除。`)) return;
+        try {
+          await api('/providers/' + p.id, { method: 'DELETE' });
+          toast('提供方已删除');
+          await loadProviders();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+
+      const syncTarget = ref(null);
+      const syncModelsText = ref('');
+      const syncModelCount = computed(() => syncModelsText.value.split('\n').map(s => s.trim()).filter(Boolean).length);
+      function openSyncModels(p) {
+        syncTarget.value = p;
+        syncModelsText.value = p.models.map(m => m.modelId).join('\n');
+      }
+      async function submitSyncModels() {
+        const lines = syncModelsText.value.split('\n').map(s => s.trim()).filter(Boolean);
+        if (!lines.length) { toast('请至少填写一个模型 ID', 'err'); return; }
+        try {
+          await api(`/providers/${syncTarget.value.id}/sync-models`, {
+            method: 'POST',
+            body: { models: lines.map(modelId => ({ modelId, displayName: modelId })) },
+          });
+          toast(`已同步 ${lines.length} 个模型`);
+          syncTarget.value = null;
+          await loadProviders();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+
+      // ---------- 虚拟模型 ----------
+      const addingVModel = ref(false);
+      const vmForm = reactive({ name: '', strategy: 'RoundRobin', maxRetries: 2 });
+      function openAddVModel() {
+        Object.assign(vmForm, { name: '', strategy: 'RoundRobin', maxRetries: 2 });
+        addingVModel.value = true;
+      }
+      async function submitAddVModel() {
+        try {
+          await api('/virtual-models', { method: 'POST', body: { name: vmForm.name, strategy: vmForm.strategy } });
+          toast('虚拟模型创建成功');
+          addingVModel.value = false;
+          await loadVModels();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+      async function deleteVModel(v) {
+        if (!confirm(`确定删除虚拟模型「${v.name}」吗？`)) return;
+        try {
+          await api('/virtual-models/' + v.id, { method: 'DELETE' });
+          toast('虚拟模型已删除');
+          await loadVModels();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+
+      const membersModal = reactive({ vm: null, loading: false, members: [] });
+      const memberForm = reactive({ upstreamModelId: '', weight: 1, priority: 100 });
+      const memberCandidates = computed(() => {
+        const used = new Set(membersModal.members.map(m => m.upstream_model_id));
+        const out = [];
+        for (const p of providers.value) {
+          for (const m of p.models) {
+            if (!used.has(m.id)) out.push({ value: m.id, label: `${p.name} / ${m.modelId}` });
           }
         }
-        try {
-          const result = await api('/providers/' + id, { method: 'PATCH', body });
-          if (result && result.error) { toast(result.error, 'err'); return; }
-          toast('Provider updated' + (result && result.warning ? ' (' + result.warning + ')' : ''), 'ok');
-          closeModal();
-          loadProviders();
-        } catch (err) { toast(err.message, 'err'); }
+        return out;
       });
-    });
-  }
-
-  function openSyncModels(providerId) {
-    openModal(`
-      <h3>Sync Models for Provider</h3>
-      <p style="color:var(--text-dim)">Enter model IDs (one per line):</p>
-      <textarea id="syncModelsInput" rows="6" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:10px;border-radius:8px;font:inherit" placeholder="gpt-4o&#10;gpt-4o-mini&#10;o1-preview"></textarea>
-      <div class="form-actions">
-        <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
-        <button type="button" class="action" id="doSyncModels">Sync</button>
-      </div>
-    `);
-    $('#doSyncModels').addEventListener('click', async () => {
-      const lines = $('#syncModelsInput').value.trim().split('\n').filter(Boolean);
-      if (lines.length === 0) { toast('Enter at least one model', 'err'); return; }
-      try {
-        await api('/providers/' + providerId + '/sync-models', {
-          method: 'POST',
-          body: { models: lines.map(m => ({ modelId: m.trim(), displayName: m.trim() })) },
-        });
-        toast(`Synced ${lines.length} models`, 'ok');
-        closeModal();
-        loadProviders();
-      } catch (err) { toast(err.message, 'err'); }
-    });
-  }
-
-  // ---- Virtual Models ----
-  async function loadVModels() {
-    const r = await api('/virtual-models');
-    $('#vmodelCount').textContent = r.virtualModels.length;
-    if (r.virtualModels.length === 0) {
-      $('#vmodelList').innerHTML = '<div class="empty">No virtual models. Click "+ Add Virtual Model" to create one.</div>';
-      return;
-    }
-    $('#vmodelList').innerHTML = `
-      <div class="card" style="padding:0;overflow:auto">
-        <table>
-          <thead><tr><th>Name</th><th>Strategy</th><th>Max Retries</th><th>Created</th><th>Actions</th></tr></thead>
-          <tbody>${r.virtualModels.map(v => `
-            <tr>
-              <td>
-                <strong>${escape(v.name)}</strong>
-                <code style="color:var(--text-muted);font-size:11px">${escape(v.id)}</code>
-              </td>
-              <td><span class="pill info">${escape(v.strategy)}</span></td>
-              <td>${v.maxRetries}</td>
-              <td>${FORMATS.rel(v.createdAt)}</td>
-              <td>
-                <button class="action ghost sm view-members" data-id="${escape(v.id)}" data-name="${escape(v.name)}">Members</button>
-                <button class="action ghost sm view-avail" data-id="${escape(v.id)}" data-name="${escape(v.name)}">Availability</button>
-                <button class="action danger sm delete-vmodel" data-id="${escape(v.id)}" data-name="${escape(v.name)}">Delete</button>
-              </td>
-            </tr>`).join('')}</tbody>
-        </table>
-      </div>`;
-
-    $$('button.delete-vmodel').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm(`Delete virtual model "${btn.dataset.name}"?`)) return;
+      async function openMembers(v) {
+        membersModal.vm = v;
+        membersModal.loading = true;
         try {
-          await api('/virtual-models/' + btn.dataset.id, { method: 'DELETE' });
-          toast('Virtual model deleted', 'ok');
-          loadVModels();
+          if (!providers.value.length) await loadProviders();
+          membersModal.members = (await api(`/virtual-models/${v.id}/members`)).members ?? [];
+          memberForm.upstreamModelId = memberCandidates.value[0]?.value ?? '';
         } catch (e) { toast(e.message, 'err'); }
-      });
-    });
-
-    $$('button.view-members').forEach(btn => {
-      btn.addEventListener('click', () => openViewMembers(btn.dataset.id, btn.dataset.name));
-    });
-
-    $$('button.view-avail').forEach(btn => {
-      btn.addEventListener('click', () => openViewAvailability(btn.dataset.id, btn.dataset.name));
-    });
-  }
-  $('#addVModelBtn').addEventListener('click', () => openAddVModel());
-
-  function openAddVModel() {
-    openModal(`
-      <h3>Add Virtual Model</h3>
-      <form id="addVModelForm" class="inline" style="flex-direction:column;align-items:stretch">
-        <div class="form-row"><label>Name</label><input name="name" required placeholder="gpt-4o-cluster"></div>
-        <div class="form-row"><label>Strategy</label>
-          <select name="strategy" required>
-            <option value="RoundRobin">Round Robin</option>
-            <option value="WeightedRandom">Weighted Random</option>
-            <option value="Failover">Failover</option>
-            <option value="LowestLatency">Lowest Latency</option>
-          </select>
-        </div>
-        <div class="form-row"><label>Max Retries</label><input name="maxRetries" type="number" value="2"></div>
-        <div class="form-actions">
-          <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="action">Create</button>
-        </div>
-      </form>
-    `);
-    $('#addVModelForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const body = {};
-      for (const [k, v] of fd) {
-        if (v) body[k] = v;
+        membersModal.loading = false;
       }
-      try {
-        await api('/virtual-models', { method: 'POST', body });
-        toast('Virtual model created', 'ok');
-        closeModal();
-        loadVModels();
-      } catch (err) { toast(err.message, 'err'); }
-    });
-  }
-
-  function openViewMembers(vmId, vmName) {
-    openModal(`<h3>Members: ${escape(vmName)}</h3><div id="membersContent">Loading...</div>
-      <div class="form-actions"><button class="action ghost" onclick="closeModal()">Close</button></div>`);
-    api('/virtual-models/' + vmId + '/members').then(r => {
-      if (!r.members || r.members.length === 0) {
-        $('#membersContent').innerHTML = '<div class="empty">No members</div>';
-        return;
-      }
-      $('#membersContent').innerHTML = `
-        <table>
-          <thead><tr><th>Provider</th><th>Model</th><th>Weight</th><th>Priority</th><th>Status</th><th></th></tr></thead>
-          <tbody>${r.members.map(m => `
-            <tr>
-              <td><code>${escape(m.provider_name)}</code></td>
-              <td><strong>${escape(m.model_id)}</strong></td>
-              <td>${m.weight}</td>
-              <td>${m.priority}</td>
-              <td><span class="pill ${m.availability === 'available' ? 'ok' : m.availability === 'degraded' ? 'warn' : 'err'}">${m.availability}</span></td>
-              <td><button class="action danger sm remove-member" data-vmid="${escape(vmId)}" data-model="${escape(m.upstream_model_id)}">Remove</button></td>
-            </tr>`).join('')}</tbody>
-        </table>
-        <div style="margin-top:16px">
-          <button class="action sm" id="addMemberBtn">+ Add Member</button>
-        </div>`;
-      $$('button.remove-member').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          try {
-            await api('/virtual-models/' + btn.dataset.vmid + '/members/' + btn.dataset.model, { method: 'DELETE' });
-            toast('Member removed', 'ok');
-            openViewMembers(vmId, vmName);
-          } catch (e) { toast(e.message, 'err'); }
-        });
-      });
-      $('#addMemberBtn').addEventListener('click', () => openAddMember(vmId));
-    }).catch(e => { $('#membersContent').innerHTML = '<div class="empty">' + escape(e.message) + '</div>'; });
-  }
-
-  function openAddMember(vmId) {
-    api('/providers').then(r => {
-      const allModels = r.providers.flatMap(p => p.models.map(m => ({ ...m, providerId: p.id, providerName: p.name })));
-      if (allModels.length === 0) { toast('No providers/models available', 'err'); return; }
-      openModal(`
-        <h3>Add Member to Virtual Model</h3>
-        <form id="addMemberForm" class="inline" style="flex-direction:column;align-items:stretch">
-          <div class="form-row"><label>Upstream Model</label>
-            <select name="upstreamModelId" required>
-              ${allModels.map(m => `<option value="${escape(m.id)}">${escape(m.providerName)} / ${escape(m.modelId)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-row" style="display:flex;gap:12px">
-            <div style="flex:1"><label>Weight</label><input name="weight" type="number" value="1"></div>
-            <div style="flex:1"><label>Priority</label><input name="priority" type="number" value="100"></div>
-          </div>
-          <div class="form-actions">
-            <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
-            <button type="submit" class="action">Add</button>
-          </div>
-        </form>
-      `);
-      $('#addMemberForm').addEventListener('submit', async e => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const body = {};
-        for (const [k, v] of fd) {
-          if (v) body[k] = v;
-        }
+      async function submitAddMember() {
+        if (!memberForm.upstreamModelId) { toast('请选择一个上游模型', 'err'); return; }
         try {
-          await api('/virtual-models/' + vmId + '/members', { method: 'POST', body });
-          toast('Member added', 'ok');
-          closeModal();
-          openViewMembers(vmId, '');
-        } catch (err) { toast(err.message, 'err'); }
-      });
-    });
-  }
-
-  function openViewAvailability(vmId, vmName) {
-    openModal(`<h3>Availability: ${escape(vmName)}</h3><div id="availContent">Loading...</div>
-      <div class="form-actions"><button class="action ghost" onclick="closeModal()">Close</button></div>`);
-    api('/virtual-models/' + vmId + '/availability').then(r => {
-      if (!r.members || r.members.length === 0) {
-        $('#availContent').innerHTML = '<div class="empty">No members</div>';
-        return;
-      }
-      $('#availContent').innerHTML = `
-        <table>
-          <thead><tr><th>Provider</th><th>Model</th><th>Status</th><th>P50</th><th>P95</th></tr></thead>
-          <tbody>${r.members.map(m => {
-            const cls = m.availability === 'available' ? 'ok' : m.availability === 'degraded' ? 'warn' : 'err';
-            return `<tr>
-              <td><code>${escape(m.provider_name)}</code></td>
-              <td><strong>${escape(m.model_id)}</strong></td>
-              <td><span class="pill ${cls}">${m.availability}</span></td>
-              <td>${m.latency_ms_p50 != null ? m.latency_ms_p50 + 'ms' : '-'}</td>
-              <td>${m.latency_ms_p95 != null ? m.latency_ms_p95 + 'ms' : '-'}</td>
-            </tr>`;
-          }).join('')}</tbody>
-        </table>`;
-    }).catch(e => { $('#availContent').innerHTML = '<div class="empty">' + escape(e.message) + '</div>'; });
-  }
-
-  // ---- API Keys ----
-  async function loadKeys() {
-    const r = await api('/keys');
-    $('#keyCount').textContent = r.keys.length;
-    if (r.keys.length === 0) {
-      $('#keyList').innerHTML = '<div class="empty">No API keys. Click "+ New Key" to create one.</div>';
-      return;
-    }
-    $('#keyList').innerHTML = `
-      <div class="card" style="padding:0;overflow:auto">
-        <table>
-          <thead><tr><th>Name</th><th>Prefix</th><th>Status</th><th>Budget</th><th>Cache</th><th>Created</th><th>Actions</th></tr></thead>
-          <tbody>${r.keys.map(k => {
-            const budgets = [k.budgetDailyUsd, k.budgetMonthlyUsd, k.budgetTotalUsd].filter(x => x != null).map(x => '$' + x).join(' / ');
-            return `<tr>
-              <td><strong>${escape(k.name)}</strong></td>
-              <td><code>${escape(k.prefix || '')}</code></td>
-              <td><span class="pill ${k.status === 'active' ? 'ok' : 'err'}">${k.status}</span></td>
-              <td>${budgets || '<span style="color:var(--text-muted)">-</span>'}</td>
-              <td>${k.cacheEnabled ? '<span class="pill ok">On</span>' : '<span class="pill">Off</span>'}</td>
-              <td>${FORMATS.rel(k.createdAt)}</td>
-              <td>
-                <button class="action ghost sm reset-budget" data-id="${escape(k.id)}" data-name="${escape(k.name)}">Reset Budget</button>
-                <button class="action danger sm delete-key" data-id="${escape(k.id)}" data-name="${escape(k.name)}">Delete</button>
-              </td>
-            </tr>`;
-          }).join('')}</tbody>
-        </table>
-      </div>`;
-
-    $$('button.delete-key').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm(`Delete key "${btn.dataset.name}"?`)) return;
-        try {
-          await api('/keys/' + btn.dataset.id, { method: 'DELETE' });
-          toast('Key deleted', 'ok');
-          loadKeys();
+          await api(`/virtual-models/${membersModal.vm.id}/members`, {
+            method: 'POST',
+            body: { upstreamModelId: memberForm.upstreamModelId, weight: memberForm.weight, priority: memberForm.priority },
+          });
+          toast('成员已添加');
+          await openMembers(membersModal.vm);
         } catch (e) { toast(e.message, 'err'); }
-      });
-    });
-
-    $$('button.reset-budget').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm(`Reset budget for "${btn.dataset.name}"?`)) return;
+      }
+      async function removeMember(m) {
         try {
-          await api('/keys/' + btn.dataset.id + '/budget/reset', { method: 'POST' });
-          toast('Budget reset', 'ok');
+          await api(`/virtual-models/${membersModal.vm.id}/members/${encodeURIComponent(m.upstream_model_id)}`, { method: 'DELETE' });
+          toast('成员已移除');
+          await openMembers(membersModal.vm);
         } catch (e) { toast(e.message, 'err'); }
+      }
+
+      const availModal = reactive({ vm: null, loading: false, members: [] });
+      async function openVMAvailability(v) {
+        availModal.vm = v;
+        availModal.loading = true;
+        try { availModal.members = (await api(`/virtual-models/${v.id}/availability`)).members ?? []; }
+        catch (e) { toast(e.message, 'err'); }
+        availModal.loading = false;
+      }
+
+      // ---------- 密钥 ----------
+      const addingKey = ref(false);
+      const createdKeyValue = ref(null);
+      const copiedKey = ref(false);
+      const keyForm = reactive({ name: '', budgetDailyUsd: '', budgetMonthlyUsd: '', budgetTotalUsd: '', cacheEnabled: true });
+      function openAddKey() {
+        Object.assign(keyForm, { name: '', budgetDailyUsd: '', budgetMonthlyUsd: '', budgetTotalUsd: '', cacheEnabled: true });
+        copiedKey.value = false;
+        addingKey.value = true;
+      }
+      function closeAddKey() { addingKey.value = false; }
+      async function submitAddKey() {
+        const body = { name: keyForm.name, cacheEnabled: keyForm.cacheEnabled };
+        if (keyForm.budgetDailyUsd !== '') body.budgetDailyUsd = Number(keyForm.budgetDailyUsd);
+        if (keyForm.budgetMonthlyUsd !== '') body.budgetMonthlyUsd = Number(keyForm.budgetMonthlyUsd);
+        if (keyForm.budgetTotalUsd !== '') body.budgetTotalUsd = Number(keyForm.budgetTotalUsd);
+        try {
+          const r = await api('/keys', { method: 'POST', body });
+          addingKey.value = false;
+          copiedKey.value = false;
+          createdKeyValue.value = r.key ?? r.token ?? '(服务器未返回密钥)';
+          await loadKeys();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+      function copyCreatedKey() {
+        navigator.clipboard.writeText(createdKeyValue.value ?? '').then(() => { copiedKey.value = true; });
+      }
+      async function deleteKey(k) {
+        if (!confirm(`确定删除密钥「${k.name}」吗？使用该密钥的客户端将立即失去访问权限。`)) return;
+        try {
+          await api('/keys/' + k.id, { method: 'DELETE' });
+          toast('密钥已删除');
+          await loadKeys();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+      async function resetBudget(k) {
+        if (!confirm(`重置密钥「${k.name}」的日/月/总额度用量计数？`)) return;
+        try {
+          await api(`/keys/${k.id}/budget/reset`, { method: 'POST' });
+          toast('预算用量已重置');
+          await loadKeys();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+
+      // ---------- 设置 ----------
+      async function clearCache() {
+        if (!confirm('确定清空全部响应缓存？清空后相同请求将重新发起上游调用。')) return;
+        try {
+          const r = await api('/cache/clear', { method: 'POST' });
+          toast(`已清除 ${fmtInt(r.cleared)} 条缓存`);
+          await loadSettings();
+        } catch (e) { toast(e.message, 'err'); }
+      }
+      async function clearLogs() {
+        if (!confirm('确定清空全部请求日志？此操作不可恢复。')) return;
+        try {
+          await api('/logs', { method: 'DELETE' });
+          toast('请求日志已清空');
+        } catch (e) { toast(e.message, 'err'); }
+      }
+
+      // ---------- 初始化 ----------
+      onMounted(async () => {
+        await Promise.all([
+          loadProviders(),
+          loadSettings(),
+        ]).catch(() => {});
+        await reloadCurrent();
       });
-    });
-  }
-  $('#newKeyBtn').addEventListener('click', () => openAddKey());
 
-  function openAddKey() {
-    openModal(`
-      <h3>Create API Key</h3>
-      <form id="addKeyForm" class="inline" style="flex-direction:column;align-items:stretch">
-        <div class="form-row"><label>Name</label><input name="name" required placeholder="prod-app"></div>
-        <div class="form-row" style="display:flex;gap:12px">
-          <div style="flex:1"><label>Daily Budget ($)</label><input name="budgetDailyUsd" type="number" step="0.01"></div>
-          <div style="flex:1"><label>Monthly Budget ($)</label><input name="budgetMonthlyUsd" type="number" step="0.01"></div>
-        </div>
-        <div class="form-actions">
-          <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="action">Create Key</button>
-        </div>
-      </form>
-    `);
-    $('#addKeyForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const body = { name: fd.get('name') };
-      for (const k of ['budgetDailyUsd', 'budgetMonthlyUsd']) {
-        const v = fd.get(k);
-        if (v) body[k] = Number(v);
-      }
-      try {
-        const r = await api('/keys', { method: 'POST', body });
-        openModal(`
-          <h3>API Key Created</h3>
-          <p style="color:var(--text-dim)">Copy this token now — it will not be shown again:</p>
-          <pre><code id="newKeyToken">${escape(r.token)}</code></pre>
-          <div class="form-actions">
-            <button class="action" onclick="navigator.clipboard.writeText(document.getElementById('newKeyToken').textContent);toast('Copied!','ok')">Copy Token</button>
-            <button class="action ghost" onclick="closeModal()">Close</button>
-          </div>
-        `);
-        loadKeys();
-      } catch (err) { toast(err.message, 'err'); }
-    });
-  }
-
-  // ---- Usage ----
-  async function loadUsage() {
-    const since = Number($('#usageRange').value);
-    const r = await api('/usage?sinceMs=' + (Date.now() - since) + '&limit=100');
-    if (!r.records || r.records.length === 0) {
-      $('#usageRows').innerHTML = '<tr><td colspan="9" class="empty">No records in window</td></tr>';
-      return;
-    }
-    $('#usageRows').innerHTML = r.records.map(u => {
-      const ok = u.status_code >= 200 && u.status_code < 400;
-      return `<tr>
-        <td>${FORMATS.time(u.created_at)}</td>
-        <td><code>${escape(u.virtual_model_id || u.upstream_model_id || '-')}</code></td>
-        <td><code style="color:var(--text-muted)">${escape(u.upstream_provider_id || '-')}</code></td>
-        <td><span class="pill">${escape(u.client_protocol)}</span></td>
-        <td>${FORMATS.int(u.total_tokens)}</td>
-        <td>${FORMATS.usd(u.cost_usd)}</td>
-        <td>${u.cache_hit && u.cache_hit !== 'none' ? `<span class="pill ok">${escape(u.cache_hit)}</span>` : '<span class="pill">-</span>'}</td>
-        <td><span class="pill ${ok ? 'ok' : 'err'}">${u.status_code}</span></td>
-        <td>${u.latency_ms}ms</td>
-      </tr>`;
-    }).join('');
-  }
-  $('#usageRange').addEventListener('change', loadUsage);
-  $('#refreshUsage').addEventListener('click', loadUsage);
-
-  // ---- Settings ----
-  async function loadSettings() {
-    try {
-      const r = await api('/cache/size');
-      $('#cacheSize').textContent = FORMATS.int(r.size);
-    } catch (e) { /* ignore */ }
-  }
-  $('#clearCacheBtn').addEventListener('click', async () => {
-    if (!confirm('Clear all cache entries?')) return;
-    try {
-      const r = await api('/cache/clear', { method: 'POST' });
-      toast(`Cleared ${r.cleared} entries`, 'ok');
-      loadSettings();
-    } catch (e) { toast(e.message, 'err'); }
-  });
-
-  // ---- View loader ----
-  function loadView(id) {
-    const loaders = {
-      dashboard: loadDashboard,
-      availability: loadAvailability,
-      providers: loadProviders,
-      vmodels: loadVModels,
-      keys: loadKeys,
-      usage: loadUsage,
-      settings: loadSettings,
-    };
-    const fn = loaders[id];
-    if (fn) fn().catch(e => toast(e.message, 'err'));
-  }
-
-  // Init
-  setView(currentView());
-  window.addEventListener('hashchange', () => setView(currentView()));
-
-  // Redraw chart on window resize when dashboard is visible
-  let resizeTimer;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      if (document.querySelector('.view[data-view="dashboard"]').classList.contains('active')) {
-        loadDashboard().catch(() => {});
-      }
-    }, 200);
-  });
-
-  // ---- Mobile sidebar toggle ----
-  const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebarOverlay');
-  const hamburger = document.getElementById('hamburgerBtn');
-
-  function openSidebar() {
-    sidebar.classList.add('open');
-    overlay.classList.add('visible');
-  }
-
-  function closeSidebar() {
-    sidebar.classList.remove('open');
-    overlay.classList.remove('visible');
-  }
-
-  hamburger.addEventListener('click', () => {
-    if (sidebar.classList.contains('open')) {
-      closeSidebar();
-    } else {
-      openSidebar();
-    }
-  });
-
-  overlay.addEventListener('click', closeSidebar);
-
-  // Close sidebar when clicking nav items on mobile
-  document.querySelectorAll('#sidebarNav button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (window.innerWidth <= 768) closeSidebar();
-    });
-  });
+      return {
+        navGroups, currentView, currentViewInfo, sidebarOpen, serverOnline,
+        switchView, reloadCurrent,
+        dashCardsTop, dashCardsBottom,
+        chartEl,
+        models, providers, virtualModels, keys, usageRecords, usageRangeHours, cacheSize,
+        protocolLabel, strategyLabel, availLabel, availClass, cacheHitLabel, keyStatusLabel, clientProtocolLabel, budgetSummary,
+        fmtInt, fmtUsd, fmtPrice, fmtTime, fmtRel,
+        modal, closeModal,
+        protocols, addingProvider, addForm, openAddProvider, submitAddProvider,
+        editingProvider, editForm, openEditProvider, submitEditProvider, updateProvider, deleteProvider,
+        syncTarget, syncModelsText, syncModelCount, openSyncModels, submitSyncModels,
+        addingVModel, vmForm, openAddVModel, submitAddVModel, deleteVModel,
+        membersModal, memberForm, memberCandidates, openMembers, submitAddMember, removeMember,
+        availModal, openVMAvailability,
+        addingKey, keyForm, createdKeyValue, copiedKey, openAddKey, closeAddKey, submitAddKey, copyCreatedKey, deleteKey, resetBudget,
+        clearCache, clearLogs,
+        toasts,
+      };
+    },
+  }).mount('#app');
 })();
 </script>
 </body>
