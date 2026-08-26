@@ -24,3 +24,45 @@ export type {
 export { encrypt, decrypt, loadMasterKey, roundTrip, CryptoError } from './crypto/aes.js';
 export { createLogger, log, redact } from './utils/logger.js';
 export type { Logger, LogLevel } from './utils/logger.js';
+
+export type {
+  IRRequest,
+  IRResponse,
+  IRMessage,
+  IRContent,
+  IRTextContent,
+  IRImageContent,
+  IRAudioContent,
+  IRToolUse,
+  IRToolResult,
+  IRThinking,
+  IRTool,
+  IRToolParameter,
+  IRToolChoice,
+  IRReasoning,
+  IRResponseFormat,
+  IRContinuation,
+  IRUsage,
+  IRFinishReason,
+  IRChoice,
+  IRStreamEvent,
+  IROutputItem,
+  IRTextOutputItem,
+  IRFunctionCallItem,
+  IRFunctionCallOutputItem,
+  IRReasoningItem,
+  IRWebSearchItem,
+  IRRole,
+  ImageDetail,
+} from './ir/types.js';
+export {
+  canonicalJSON,
+  emptyIRRequest,
+  estimateTokens,
+  fingerprint,
+  normalizeMessage,
+  normalizeMessages,
+  textMsg,
+  toolResultMsg,
+  type FingerprintInput,
+} from './ir/normalize.js';

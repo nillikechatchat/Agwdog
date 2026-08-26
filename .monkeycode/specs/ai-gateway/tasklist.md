@@ -56,17 +56,17 @@
 
 ---
 
-- [ ] 3. 内部表示 IR（Req 1/2/3，design §4.4）
-  - [ ] 3.1 IR 类型定义 `src/ir/types.ts`
+- [x] 3. 内部表示 IR（Req 1/2/3，design §4.4）
+  - [x] 3.1 IR 类型定义 `src/ir/types.ts`
     - `IRMessage` / `IRContent` 联合（text/image/audio/tool_use/tool_result/thinking）
     - `IRTool` 含 `providerExecuted` 与 `builtinKind`（web_search/code_interpreter/file_search）
     - `IRRequest` 含 `reasoning: IRReasoning` 与 `continuation: { previousResponseId? }`
     - `IRResponse` 含 `outputItems: IROutputItem[]` 联合（text/function_call/function_call_output/reasoning/web_search）
     - `IRUsage`、`IRFinishReason`、`IRChoice`
-  - [ ] 3.2 IR 规范化工具 `src/ir/normalize.ts`
+  - [x] 3.2 IR 规范化工具 `src/ir/normalize.ts`
     - `normalizeMessages()` — 合并连续同 role 消息、规范化空白
     - `fingerprint(request)` — model + 稳定序列化（键排序） + temperature + top_p + max_tokens + tools + tool_choice + response_format + seed → SHA-256
-  - [ ] 3.3 IR 单测 `test/unit/ir/`
+  - [x] 3.3 IR 单测 `test/unit/ir/`
     - 指纹抗碰撞：改任一关键字段必须 miss；相同输入两次必同指纹
     - 输出项类型覆盖 5 种（text/function_call/function_call_output/reasoning/web_search）
 
