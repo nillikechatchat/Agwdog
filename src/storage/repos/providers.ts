@@ -82,4 +82,68 @@ export class ProviderRepo {
   delete(id: string): void {
     this.db.prepare(`DELETE FROM providers WHERE id = ?`).run(id);
   }
+
+  update(
+    id: string,
+    updates: {
+      name?: string;
+      protocol?: Protocol;
+      baseUrl?: string;
+      apiKeyCiphertext?: string;
+      apiKeyIv?: string;
+      apiKeyTag?: string;
+      inputPricePerMTokensUsd?: number | null;
+      outputPricePerMTokensUsd?: number | null;
+      cachedInputPricePerMTokensUsd?: number | null;
+      enabled?: boolean;
+    },
+    now = Date.now(),
+  ): void {
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.name !== undefined) {
+      setClauses.push('name = ?');
+      values.push(updates.name);
+    }
+    if (updates.protocol !== undefined) {
+      setClauses.push('protocol = ?');
+      values.push(updates.protocol);
+    }
+    if (updates.baseUrl !== undefined) {
+      setClauses.push('base_url = ?');
+      values.push(updates.baseUrl);
+    }
+    if (updates.apiKeyCiphertext !== undefined) {
+      setClauses.push('api_key_ciphertext = ?');
+      values.push(updates.apiKeyCiphertext);
+    }
+    if (updates.apiKeyIv !== undefined) {
+      setClauses.push('api_key_iv = ?');
+      values.push(updates.apiKeyIv);
+    }
+    if (updates.apiKeyTag !== undefined) {
+      setClauses.push('api_key_tag = ?');
+      values.push(updates.apiKeyTag);
+    }
+    if (updates.inputPricePerMTokensUsd !== undefined) {
+      setClauses.push('input_price_per_mtokens_usd = ?');
+      values.push(updates.inputPricePerMTokensUsd ?? null);
+    }
+    if (updates.outputPricePerMTokensUsd !== undefined) {
+      setClauses.push('output_price_per_mtokens_usd = ?');
+      values.push(updates.outputPricePerMTokensUsd ?? null);
+    }
+    if (updates.cachedInputPricePerMTokensUsd !== undefined) {
+      setClauses.push('cached_input_price_per_mtokens_usd = ?');
+      values.push(updates.cachedInputPricePerMTokensUsd ?? null);
+    }
+    if (updates.enabled !== undefined) {
+      setClauses.push('enabled = ?');
+      values.push(updates.enabled ? 1 : 0);
+    }
+
+    values.push(id);
+    this.db.prepare(`UPDATE providers SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+  }
 }

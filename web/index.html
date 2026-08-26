@@ -317,11 +317,54 @@
     /* View visibility */
     .view { display: none; }
     .view.active { display: block; }
+
+    /* Mobile menu button */
+    .hamburger {
+      display: none;
+      background: transparent;
+      color: var(--text);
+      border: 0;
+      padding: 8px;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    .hamburger:hover { background: var(--panel-2); }
+    .hamburger svg { width: 20px; height: 20px; }
+
+    /* Sidebar overlay for mobile */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+    }
+
+    /* Responsive styles */
+    @media (max-width: 768px) {
+      aside {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+      }
+      aside.open { transform: translateX(0); }
+      .sidebar-overlay.visible { display: block; }
+      .hamburger { display: flex; align-items: center; justify-content: center; }
+      .main-wrap { margin-left: 0; }
+      main { padding: 16px; }
+      .grid.cols-4, .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
+    }
+
+    @media (min-width: 769px) {
+      aside { transform: translateX(0); }
+      .hamburger { display: none; }
+    }
   </style>
 </head>
 <body>
 
-<aside>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<aside id="sidebar">
   <div class="brand">
     <div class="logo">AG</div>
     <div>
@@ -349,6 +392,11 @@
 
 <div class="main-wrap">
   <header>
+    <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 12h18M3 6h18M3 18h18"/>
+      </svg>
+    </button>
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div class="status-pill">
       <div class="status-dot"></div>
@@ -601,10 +649,76 @@
       </div>`).join('');
 
     const max = Math.max(1, ...(stats.series7d || []).map(b => b.requestCount));
-    $('#series').innerHTML = (stats.series7d || []).map(b => {
-      const h = Math.round((b.requestCount / max) * 100);
-      return `<div class="bar" title="${b.bucket}: ${b.requestCount}" style="height:${Math.max(2, h)}px"></div>`;
-    }).join('') || '<div class="empty">No data</div>';
+    renderChart('series', stats.series7d || []);
+  }
+
+  // ---- Chart rendering ----
+  function renderChart(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!container || data.length === 0) {
+      container.innerHTML = '<div class="empty">No data</div>';
+      return;
+    }
+
+    const max = Math.max(...data.map(d => d.requestCount));
+    const width = container.clientWidth || 600;
+    const height = 120;
+    const padding = { top: 10, right: 10, bottom: 30, left: 40 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = '100%';
+    canvas.style.height = height + 'px';
+    container.innerHTML = '';
+    container.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const barWidth = (chartWidth / data.length) * 0.6;
+    const barGap = (chartWidth / data.length) * 0.4;
+
+    // Draw grid lines
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i <= 4; i++) {
+      const y = padding.top + (chartHeight / 4) * i;
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(width - padding.right, y);
+    }
+    ctx.stroke();
+
+    // Draw bars
+    data.forEach((d, i) => {
+      const barHeight = (d.requestCount / max) * chartHeight;
+      const x = padding.left + i * (barWidth + barGap) + barGap / 2;
+      const y = padding.top + chartHeight - barHeight;
+
+      ctx.fillStyle = '#3b82f6';
+      ctx.beginPath();
+      ctx.roundRect(x, y, barWidth, barHeight, [4, 4, 0, 0]);
+      ctx.fill();
+
+      // X-axis labels
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      const date = new Date(d.bucket);
+      const label = `${date.getMonth() + 1}/${date.getDate()}`;
+      ctx.fillText(label, x + barWidth / 2, height - 8);
+    });
+
+    // Y-axis labels
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+      const value = Math.round((max / 4) * (4 - i));
+      const y = padding.top + (chartHeight / 4) * i;
+      ctx.fillText(value.toString(), padding.left - 8, y + 4);
+    }
   }
 
   // ---- Availability ----
@@ -741,17 +855,43 @@
         <h3>Edit Provider</h3>
         <form id="editProviderForm" class="inline" style="flex-direction:column;align-items:stretch">
           <div class="form-row"><label>Name</label><input name="name" value="${escape(p.name)}" required></div>
+          <div class="form-row"><label>Protocol</label>
+            <select name="protocol" required>
+              <option value="OpenAI" ${p.protocol === 'OpenAI' ? 'selected' : ''}>OpenAI</option>
+              <option value="OpenAI-Compatible" ${p.protocol === 'OpenAI-Compatible' ? 'selected' : ''}>OpenAI-Compatible</option>
+              <option value="Anthropic" ${p.protocol === 'Anthropic' ? 'selected' : ''}>Anthropic</option>
+              <option value="Gemini" ${p.protocol === 'Gemini' ? 'selected' : ''}>Gemini</option>
+              <option value="Doubao" ${p.protocol === 'Doubao' ? 'selected' : ''}>Doubao</option>
+              <option value="Wenxin" ${p.protocol === 'Wenxin' ? 'selected' : ''}>Wenxin</option>
+            </select>
+          </div>
           <div class="form-row"><label>Base URL</label><input name="baseUrl" value="${escape(p.baseUrl)}" required></div>
+          <div class="form-row"><label>API Key (leave blank to keep current)</label><input name="apiKey" type="password" placeholder="sk-..."></div>
+          <div class="form-row" style="display:flex;gap:12px">
+            <div style="flex:1"><label>Input Price ($/MTok)</label><input name="inputPrice" type="number" step="0.000001" value="${p.inputPrice || ''}"></div>
+            <div style="flex:1"><label>Output Price ($/MTok)</label><input name="outputPrice" type="number" step="0.000001" value="${p.outputPrice || ''}"></div>
+          </div>
           <div class="form-actions">
             <button type="button" class="action ghost" onclick="closeModal()">Cancel</button>
-            <button type="submit" class="action">Save</button>
+            <button type="submit" class="action">Save Changes</button>
           </div>
         </form>
       `);
       $('#editProviderForm').addEventListener('submit', async e => {
         e.preventDefault();
-        toast('Edit coming soon', 'warn');
-        closeModal();
+        const fd = new FormData(e.target);
+        const body = {};
+        for (const [k, v] of fd) {
+          if (v !== '') body[k] = v;
+        }
+        // Remove apiKey if empty
+        if (!body['apiKey']) delete body['apiKey'];
+        try {
+          await api('/providers/' + id, { method: 'PATCH', body });
+          toast('Provider updated', 'ok');
+          closeModal();
+          loadProviders();
+        } catch (err) { toast(err.message, 'err'); }
       });
     });
   }
@@ -1121,6 +1261,38 @@
   // Init
   setView(currentView());
   window.addEventListener('hashchange', () => setView(currentView()));
+
+  // ---- Mobile sidebar toggle ----
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  const hamburger = document.getElementById('hamburgerBtn');
+
+  function openSidebar() {
+    sidebar.classList.add('open');
+    overlay.classList.add('visible');
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('visible');
+  }
+
+  hamburger.addEventListener('click', () => {
+    if (sidebar.classList.contains('open')) {
+      closeSidebar();
+    } else {
+      openSidebar();
+    }
+  });
+
+  overlay.addEventListener('click', closeSidebar);
+
+  // Close sidebar when clicking nav items on mobile
+  document.querySelectorAll('#sidebarNav button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (window.innerWidth <= 768) closeSidebar();
+    });
+  });
 })();
 </script>
 </body>

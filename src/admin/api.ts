@@ -43,6 +43,7 @@ export function buildAdminRouter(): Route[] {
     { method: 'GET', regex: /^\/admin\/api\/providers$/, paramNames: [], handler: handleListProviders },
     { method: 'POST', regex: /^\/admin\/api\/providers$/, paramNames: [], handler: handleCreateProvider },
     { method: 'DELETE', regex: /^\/admin\/api\/providers\/(?<id>[^/]+)$/, paramNames: ['id'], handler: handleDeleteProvider },
+    { method: 'PATCH', regex: /^\/admin\/api\/providers\/(?<id>[^/]+)$/, paramNames: ['id'], handler: handleUpdateProvider },
     { method: 'POST', regex: /^\/admin\/api\/providers\/(?<id>[^/]+)?\/sync-models$/, paramNames: ['id'], handler: handleSyncModels },
     { method: 'GET', regex: /^\/admin\/api\/providers\/(?<providerId>[^/]+)?\/models$/, paramNames: ['providerId'], handler: handleListProviderModels },
     { method: 'POST', regex: /^\/admin\/api\/providers\/(?<providerId>[^/]+)?\/models$/, paramNames: ['providerId'], handler: handleCreateProviderModel },
@@ -199,6 +200,42 @@ function handleDeleteProvider(ctx: AdminContext) {
   const id = ctx.params['id']!;
   ctx.repos.providers.delete(id);
   return { deleted: id };
+}
+
+function handleUpdateProvider(ctx: AdminContext) {
+  const id = ctx.params['id']!;
+  const existing = ctx.repos.providers.getById(id);
+  if (!existing) return { error: 'provider not found' };
+
+  const body = ctx.body as Record<string, unknown> | null;
+  if (!body) return { error: 'request body required' };
+
+  const updates: Record<string, unknown> = {};
+
+  if (body['name'] !== undefined) updates['name'] = body['name'] as string;
+  if (body['protocol'] !== undefined) updates['protocol'] = body['protocol'] as string;
+  if (body['baseUrl'] !== undefined) updates['baseUrl'] = body['baseUrl'] as string;
+
+  // Handle API key update
+  if (body['apiKey'] !== undefined) {
+    const newApiKey = body['apiKey'] as string;
+    if (newApiKey && newApiKey.length > 0 && ctx.deps.masterKey) {
+      const encrypted = encrypt(newApiKey, ctx.deps.masterKey);
+      updates['apiKeyCiphertext'] = encrypted.ciphertext;
+      updates['apiKeyIv'] = encrypted.iv;
+      updates['apiKeyTag'] = encrypted.tag;
+    }
+  }
+
+  if (body['inputPrice'] !== undefined) updates['inputPricePerMTokensUsd'] = body['inputPrice'] ? Number(body['inputPrice']) : null;
+  if (body['outputPrice'] !== undefined) updates['outputPricePerMTokensUsd'] = body['outputPrice'] ? Number(body['outputPrice']) : null;
+  if (body['cachedInputPrice'] !== undefined) updates['cachedInputPricePerMTokensUsd'] = body['cachedInputPrice'] ? Number(body['cachedInputPrice']) : null;
+  if (body['enabled'] !== undefined) updates['enabled'] = body['enabled'] === true;
+
+  if (Object.keys(updates).length === 0) return { error: 'no updates provided' };
+
+  ctx.repos.providers.update(id, updates as Parameters<typeof ctx.repos.providers.update>[1]);
+  return { updated: id };
 }
 
 function handleSyncModels(ctx: AdminContext) {
