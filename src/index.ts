@@ -146,3 +146,18 @@ export {
   type RouterDeps,
 } from './router/strategies.js';
 export { dryRunRoute, type DryRunResult } from './router/dry-run.js';
+
+export {
+  createAdapter,
+  OpenAIAdapter,
+  OpenAICompatibleAdapter,
+  AnthropicAdapter,
+  GeminiAdapter,
+  DoubaoAdapter,
+  WenxinAdapter,
+  AdapterError,
+  type AdapterFactoryOptions,
+  type OpenAICompatibleOptions,
+  type ProviderAdapter,
+  type ProviderRequestEnvelope,
+} from './adapters/index.js';
