@@ -13,7 +13,7 @@
  */
 
 import { resolve } from 'node:path';
-import { argv } from 'node:process';
+import { argv, env } from 'node:process';
 
 const VERSION = '0.1.0';
 
@@ -65,13 +65,9 @@ Environment variables:
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { Registry } = require('../observability/registry.js') as typeof import('../observability/registry.js');
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { authPipeline } = require('../auth/pipeline.js') as typeof import('../auth/pipeline.js');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { createClientSerializer } = require('../clients/index.js') as typeof import('../clients/index.js');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { log } = require('../utils/logger.js') as typeof import('../utils/logger.js');
 
-  const dataDir = process.env.GATEWAY_DATA_DIR ?? resolve(process.cwd(), 'data');
+  const dataDir = env['GATEWAY_DATA_DIR'] ?? resolve(process.cwd(), 'data');
   const dbPath = resolve(dataDir, 'gateway.db');
   const db = openDatabase(dbPath);
   migrate(db as never);
@@ -86,15 +82,16 @@ Environment variables:
     res.end(JSON.stringify({ ok: true, version: VERSION, message: 'gateway up (dispatch stub)' }));
   }
 
+  const adminToken = env['GATEWAY_ADMIN_TOKEN'];
   const server = startServer({
     dispatch,
     db,
-    port: Number(process.env.GATEWAY_PORT) || 3000,
-    host: process.env.GATEWAY_HOST || '127.0.0.1',
+    port: Number(env['GATEWAY_PORT']) || 3000,
+    host: env['GATEWAY_HOST'] || '127.0.0.1',
     admin: {
       repos,
       registry,
-      adminToken: process.env.GATEWAY_ADMIN_TOKEN,
+      ...(adminToken !== undefined ? { adminToken } : {}),
     },
     onListen(info) {
       log.info('cli.start', { host: info.host, port: info.port, configFile });
@@ -105,10 +102,9 @@ Environment variables:
   });
 
   // Listen.
-  await server.ready;
+  void server.ready.then(() => {
+    // keep alive until SIGTERM
+  });
 }
 
-main().catch((err: unknown) => {
-  console.error('ai-gateway fatal:', err);
-  process.exit(1);
-});
+main();
