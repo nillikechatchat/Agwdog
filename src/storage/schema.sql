@@ -201,6 +201,54 @@ CREATE TABLE response_cache (
 CREATE INDEX idx_response_cache_expires ON response_cache(expires_at);
 CREATE INDEX idx_response_cache_key_created ON response_cache(key_id, created_at DESC);
 
+-- 14. semantic_cache — embedding-based similar-query cache
+CREATE TABLE semantic_cache (
+  id TEXT PRIMARY KEY,
+  virtual_model_id TEXT NOT NULL,
+  embedding BLOB NOT NULL,
+  embedding_model TEXT NOT NULL,
+  request_json TEXT NOT NULL,
+  response_json TEXT NOT NULL,
+  prompt_tokens INTEGER NOT NULL DEFAULT 0,
+  completion_tokens INTEGER NOT NULL DEFAULT 0,
+  hit_count INTEGER NOT NULL DEFAULT 0,
+  ttl_seconds INTEGER NOT NULL DEFAULT 86400,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX idx_semantic_cache_vm_expires ON semantic_cache(virtual_model_id, expires_at);
+CREATE INDEX idx_semantic_cache_expires ON semantic_cache(expires_at);
+
+-- 15. prompt_cache_records — tracks cache_control / prompt_cache_key usage
+CREATE TABLE prompt_cache_records (
+  id TEXT PRIMARY KEY,
+  virtual_model_id TEXT NOT NULL,
+  cache_key TEXT NOT NULL,
+  client_protocol TEXT NOT NULL,
+  upstream_provider_id TEXT,
+  upstream_model_id TEXT,
+  cache_control_json TEXT NOT NULL,
+  prefix_tokens INTEGER NOT NULL DEFAULT 0,
+  cached_tokens INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  last_hit_at INTEGER,
+  hit_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_prompt_cache_key ON prompt_cache_records(cache_key);
+CREATE INDEX idx_prompt_cache_vm ON prompt_cache_records(virtual_model_id);
+
+-- 16. cache_invalidation — manual or scheduled eviction
+CREATE TABLE cache_invalidation (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope TEXT NOT NULL CHECK (scope IN ('exact','semantic','prompt','response','all')),
+  virtual_model_id TEXT,
+  key_id TEXT,
+  reason TEXT,
+  triggered_by TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_invalidation_created ON cache_invalidation(created_at DESC);
+
 -- 13. schema_version — current migration version (single row)
 CREATE TABLE schema_version (
   version INTEGER PRIMARY KEY

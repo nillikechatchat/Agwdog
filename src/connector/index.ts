@@ -1,4 +1,4 @@
-export { HttpProviderConnector, CircuitOpenError, UpstreamHttpError, DEFAULT_TIMEOUT_MS } from './http-connector.js';
+export { HttpProviderConnector, CircuitOpenError, UpstreamHttpError, DEFAULT_TIMEOUT_MS, type HttpConnectorDeps } from './http-connector.js';
 export { CircuitBreaker, DEFAULT_CIRCUIT_CONFIG, type CircuitBreakerConfig } from './circuit-breaker.js';
 export { TokenBucket, VendorRateLimiter, DEFAULT_VENDOR_BUCKET, type TokenBucketConfig } from './token-bucket.js';
 export {
