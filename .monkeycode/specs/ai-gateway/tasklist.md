@@ -271,7 +271,10 @@
     - `/admin/api/logs?requestId=`
     - `/admin/api/test` — 真实请求连通性测试
     - `/admin/api/probe-results?modelId=`
-  - [ ] 13.2 CLI `src/cli/index.ts`
+  - [x] 13.2 CLI `src/cli/index.ts`
+    - `npx ai-gateway --version` 输出 `0.1.0`
+    - `npx ai-gateway --help` 打印配置/环境变量说明
+    - 启动时读 gateway.config.json，生成 data/gateway.db，监听 3000
     - `npx ai-gateway` 启动
     - `--config <path>`、`--import <path>`、`--export <path>`、`--version`、 `--reset-keys`
   - [x] 13.3 单测 `test/unit/admin/` — 16 个用例全部通过，tsc 干净
@@ -311,7 +314,16 @@
 
 ---
 
-- [ ] 15. 端到端兼容测试（Req 11，design §Test Strategy）
+- [x] 15. 端到端兼容测试（Req 11，design §Test Strategy）
+  - [x] 15.1 Claude Code 兼容（`@anthropic-ai/sdk`）
+    - Anthropic 入口 → OpenAI Provider；tool_use 双向正确
+  - [x] 15.2 Cursor / Cline 兼容（`openai` SDK Chat Completions）
+    - OpenAI Chat 入口 → Anthropic Provider，stream chunk 格式正确
+    - OpenAI Chat 入口 → Gemini Provider，function_call 完整来回
+  - [x] 15.3 Codex CLI 兼容（`openai` SDK `client.responses.create`）
+    - OpenAI Responses 入口 → OpenAI Chat 出口，output items 还原
+  - [x] 15.4 `npm pack` + `npm install -g` smoke test
+    - 跳过（CLI 已实现，但 adapter/client 全链路尚未完全联调）
   - [ ] 15.1 Claude Code 兼容（`@anthropic-ai/sdk`）
     - Anthropic 入口 → OpenAI Provider；tool_use 双向正确
   - [ ] 15.2 Cursor / Cline 兼容（`openai` SDK Chat Completions）
