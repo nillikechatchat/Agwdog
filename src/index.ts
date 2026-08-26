@@ -161,3 +161,18 @@ export {
   type ProviderAdapter,
   type ProviderRequestEnvelope,
 } from './adapters/index.js';
+
+export {
+  createClientSerializer,
+  OpenAIChatSerializer,
+  OpenAIResponsesSerializer,
+  AnthropicMessagesSerializer,
+  GeminiSerializer,
+  SerializerError,
+  type ClientSerializer,
+  type ClientProtocol,
+  type ClientSseEvent,
+  type StreamState,
+  type ResponseMeta,
+  type ExpectedRequestShape,
+} from './clients/index.js';
