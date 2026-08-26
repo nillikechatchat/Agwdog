@@ -30,16 +30,16 @@
 
 ---
 
-- [ ] 2. SQLite 存储层（Req 7/8/10/12/13/14）
-  - [ ] 2.1 数据库连接与迁移 `src/storage/db.ts`
+- [x] 2. SQLite 存储层（Req 7/8/10/12/13/14）
+  - [x] 2.1 数据库连接与迁移 `src/storage/db.ts`
     - `better-sqlite3` 单例 + `WAL` 模式 + `synchronous=NORMAL`
     - `migrate()` 执行 `schema.sql`，写入 `schema_version` 表
     - 迁移失败时打印明确错误并以非零退出码退出
-  - [ ] 2.2 schema.sql 初始化
+  - [x] 2.2 schema.sql 初始化
     - 建表：`providers`、`provider_models`、`virtual_models`、`virtual_model_members`、`keys`、`budget_counters`、`events`、`request_logs`、`cache_entries`、`probe_results`、`usage_records`、`response_cache`、`schema_version`
     - 索引：usage 按 created_at/key/upstream；events 按 key/created；request_logs 按 request_id；cache_entries 按 expires_at；probe_results 按 model/probed_at；response_cache 按 expires_at
     - 字段与 `design.md` §SQLite Schema 完全一致（参考 Requirement 5/6/7/12/13 新增字段）
-  - [ ] 2.3 Repository 模式 `src/storage/repos/*.ts`
+  - [x] 2.3 Repository 模式 `src/storage/repos/*.ts`
     - `providers.ts` — CRUD + `syncModels(providerId, modelList)`
     - `providerModels.ts` — 查询/更新 availability/consecutive_*/latency
     - `virtualModels.ts` — CRUD + members 增删 + `getMembersWithAvailability()`
@@ -50,7 +50,7 @@
     - `cache.ts` — exact cache get/put/delete + LRU 内存层（`Map` + 容量限制）
     - `probe.ts` — append + `recentN(modelId, n)`
     - `logs.ts` — append + 按 requestId 拉取
-  - [ ] 2.4 内存索引 `src/storage/indexes.ts`
+  - [x] 2.4 内存索引 `src/storage/indexes.ts`
     - 启动时从 SQLite 加载 `virtualModelIndex`、`upstreamModelIndex`、`availabilityCache` 到内存
     - Admin API 写入时同步更新内存与 SQLite
 
