@@ -381,6 +381,7 @@
       <div class="status-pill" v-else style="color:var(--err)">
         <div class="status-dot" style="background:var(--err)"></div><span>离线</span>
       </div>
+      <button class="btn ghost sm" v-if="authenticated" @click="logout" title="退出管理员认证">退出登录</button>
       <button class="btn ghost" @click="reloadCurrent">刷新</button>
     </header>
 
@@ -836,6 +837,26 @@
       <div v-for="t in toasts" :key="t.id" class="toast" :class="t.kind">{{ t.msg }}</div>
     </transition-group>
   </div>
+
+  <!-- ============ 管理员认证 ============ -->
+  <transition name="fade">
+    <div class="modal-overlay" v-if="showAuthModal">
+      <div class="modal" style="max-width:400px">
+        <h3>管理员认证</h3>
+        <p style="color:var(--text-dim);margin-top:0">此管理后台已启用访问保护，请输入管理令牌（adminToken）继续。</p>
+        <form @submit.prevent="submitAuth">
+          <div class="form-row"><label>管理令牌</label>
+            <input v-model="authInput" type="password" placeholder="管理令牌" autofocus autocomplete="off">
+          </div>
+          <p v-if="authError" style="color:var(--err);margin:0 0 10px;font-size:13px">{{ authError }}</p>
+          <div class="modal-actions">
+            <button type="button" class="btn ghost" v-if="authenticated" @click="showAuthModal = false; authError = ''">稍后再说</button>
+            <button type="submit" class="btn">认证</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </transition>
 </div>
 
 <script src="/admin/vendor/vue.global.prod.js"></script>
@@ -923,18 +944,65 @@
         return parts.join(' / ') || '未设置';
       }
 
+      // ---------- 认证 ----------
+      const AUTH_STORAGE_KEY = 'gw_admin_token';
+      const authToken = ref(localStorage.getItem(AUTH_STORAGE_KEY) || '');
+      const showAuthModal = ref(false);
+      const authInput = ref('');
+      const authError = ref('');
+      const authenticated = computed(() => authToken.value.length > 0);
+
+      function authHeaders() {
+        return authToken.value ? { 'Authorization': 'Bearer ' + authToken.value } : {};
+      }
+
+      async function submitAuth() {
+        const t = authInput.value.trim();
+        if (!t) { authError.value = '请输入管理令牌'; return; }
+        try {
+          const res = await fetch('/admin/api/stats', { headers: { 'Authorization': 'Bearer ' + t } });
+          if (res.ok) {
+            authToken.value = t;
+            localStorage.setItem(AUTH_STORAGE_KEY, t);
+            showAuthModal.value = false;
+            authError.value = '';
+            authInput.value = '';
+            toast('认证成功');
+            await reloadCurrent();
+          } else if (res.status === 401) {
+            authError.value = '令牌无效，请检查后重试';
+          } else {
+            authError.value = `服务器响应异常 (${res.status})`;
+          }
+        } catch {
+          authError.value = '网络错误，服务器可能已离线';
+        }
+      }
+
+      function logout() {
+        authToken.value = '';
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        showAuthModal.value = true;
+        toast('已退出认证', 'err');
+      }
+
       // ---------- API ----------
       async function api(path, opts = {}) {
         let res;
         try {
           res = await fetch('/admin/api' + path, {
             method: opts.method || 'GET',
-            headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,
+            headers: opts.body ? { ...authHeaders(), 'Content-Type': 'application/json' } : authHeaders(),
             body: opts.body ? JSON.stringify(opts.body) : undefined,
           });
         } catch {
           serverOnline.value = false;
           throw new Error('网络错误，服务器可能已离线');
+        }
+        serverOnline.value = true;
+        if (res.status === 401) {
+          showAuthModal.value = true;
+          throw new Error('需要管理员认证，请输入管理令牌');
         }
         if (!res.ok) {
           let msg = `请求失败 (${res.status})`;
@@ -1323,6 +1391,7 @@
 
       // ---------- 初始化 ----------
       onMounted(async () => {
+        if (!authToken.value) showAuthModal.value = true;
         await Promise.all([
           loadProviders(),
           loadSettings(),
@@ -1333,6 +1402,7 @@
       return {
         navGroups, currentView, currentViewInfo, sidebarOpen, serverOnline,
         switchView, reloadCurrent,
+        authToken, authenticated, showAuthModal, authInput, authError, submitAuth, logout,
         dashCardsTop, dashCardsBottom,
         chartEl,
         models, providers, virtualModels, keys, usageRecords, usageRangeHours, cacheSize,
