@@ -116,6 +116,13 @@ describe('admin api', () => {
     expect((resp(capture)['error'] as string)).toBe('name required');
   });
 
+  it('POST /admin/api/keys rejects overlong names', async () => {
+    const { req, res, capture } = makeReqRes('/admin/api/keys', 'POST', { name: 'x'.repeat(201) });
+    await handleAdminRequest(req, res, deps);
+    expect(res.statusCode).toBe(400);
+    expect(resp(capture)['error']).toBe('name too long (max 200 chars)');
+  });
+
   it('DELETE /admin/api/keys/:id removes a key', async () => {
     const { req, res, capture } = makeReqRes('/admin/api/keys', 'POST', { name: 'a' });
     await handleAdminRequest(req, res, deps);
@@ -189,6 +196,30 @@ describe('admin api', () => {
     await handleAdminRequest(req, res, deps);
     expect(res.statusCode).toBe(302);
     expect(capture.headers['location']).toBe('/admin');
+  });
+
+  it('GET /admin/api/usage clamps invalid limit and sinceMs', async () => {
+    (repos as any).usage.append({
+      requestId: 'r1', clientProtocol: 'openai-chat',
+      promptTokens: 1, completionTokens: 1, totalTokens: 2, costUsd: 0.001,
+      source: 'estimated', cacheHit: 'none', latencyMs: 5, statusCode: 200,
+    });
+    // limit=-1 在 SQLite 中意为无限，应回退默认值而不是透传
+    const neg = makeReqRes('/admin/api/usage?limit=-1&sinceMs=0');
+    await handleAdminRequest(neg.req, neg.res, deps);
+    expect(neg.res.statusCode).toBe(200);
+    expect((resp(neg.capture)['records'] as unknown[]).length).toBe(1);
+
+    // NaN sinceMs 应回退为最近 1 小时（记录已存在但时间戳是当前）
+    const nan = makeReqRes('/admin/api/usage?sinceMs=abc&limit=10');
+    await handleAdminRequest(nan.req, nan.res, deps);
+    expect(nan.res.statusCode).toBe(200);
+    expect((resp(nan.capture)['records'] as unknown[]).length).toBe(1);
+
+    // 超大 limit 封顶 200
+    const huge = makeReqRes('/admin/api/usage?limit=99999&sinceMs=0');
+    await handleAdminRequest(huge.req, huge.res, deps);
+    expect(huge.res.statusCode).toBe(200);
   });
 
   it('requires bearer token when adminToken configured', async () => {
@@ -330,6 +361,25 @@ describe('admin api', () => {
       await handleAdminRequest(req, res, deps);
       expect(res.statusCode).toBe(400);
       expect(resp(capture)['error']).toBe('provider not found');
+    });
+
+    it('rejects negative price with null', async () => {
+      createProvider();
+      const { req, res } = makeReqRes('/admin/api/providers/prov-1', 'PATCH', { inputPrice: -5 });
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(200);
+      const row = (repos as any).providers.getById('prov-1');
+      expect(row.input_price_per_mtokens_usd).toBeNull();
+    });
+
+    it('rejects NaN price with null on create', async () => {
+      const { req, res } = makeReqRes('/admin/api/providers', 'POST', {
+        name: 'neg', protocol: 'OpenAI', baseUrl: 'http://x', inputPrice: 'not-a-number',
+      });
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(200);
+      const row = (repos as any).providers.getById(resp((res as any) as Capture)['id'] ?? '');
+      expect(row.input_price_per_mtokens_usd).toBeNull();
     });
 
     it('returns list including price fields', async () => {

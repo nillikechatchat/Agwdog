@@ -166,6 +166,7 @@ function handleCreateProvider(ctx: AdminContext) {
   const protocol = body['protocol'] as string | undefined;
   const baseUrl = body['baseUrl'] as string | undefined;
   if (!name) return { error: 'name required' };
+  if (name.length > 200) return { error: 'name too long (max 200 chars)' };
   if (!protocol) return { error: 'protocol required' };
   if (!baseUrl) return { error: 'baseUrl required' };
 
@@ -210,7 +211,8 @@ const VALID_PROTOCOLS = ['OpenAI', 'OpenAI-Compatible', 'Anthropic', 'Gemini', '
 function parsePrice(value: unknown): number | null {
   if (value === null || value === '' || value === undefined) return null;
   const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
 }
 
 function handleUpdateProvider(ctx: AdminContext) {
@@ -226,6 +228,7 @@ function handleUpdateProvider(ctx: AdminContext) {
   if (body['name'] !== undefined) {
     const name = body['name'] as string;
     if (!name || name.trim().length === 0) return { error: 'name must be non-empty' };
+    if (name.length > 200) return { error: 'name too long (max 200 chars)' };
     updates['name'] = name;
   }
   if (body['protocol'] !== undefined) {
@@ -347,6 +350,7 @@ function handleCreateVirtualModel(ctx: AdminContext) {
   const name = body['name'] as string | undefined;
   const strategy = body['strategy'] as string | undefined;
   if (!name) return { error: 'name required' };
+  if (name.length > 200) return { error: 'name too long (max 200 chars)' };
   if (!strategy) return { error: 'strategy required' };
   
   const id = `vm-${name.toLowerCase().replace(/\s+/g, '-')}-${randomUUID().slice(0, 4)}`;
@@ -433,6 +437,7 @@ function handleCreateKey(ctx: AdminContext) {
   if (!body) return { error: 'request body required' };
   const name = body['name'] as string | undefined;
   if (!name) return { error: 'name required' };
+  if (name.length > 200) return { error: 'name too long (max 200 chars)' };
   const id = `k_${randomUUID().slice(0, 8)}`;
   const token = `sk-${randomUUID().replace(/-/g, '')}`;
   ctx.repos.keys.insert({
@@ -466,9 +471,16 @@ function handleResetBudget(ctx: AdminContext) {
   return { ok: true };
 }
 
+function parseQueryLimit(ctx: AdminContext, fallback: number): number {
+  const raw = Number(ctx.url.searchParams.get('limit') ?? fallback);
+  if (!Number.isFinite(raw) || raw <= 0) return fallback;
+  return Math.min(200, Math.floor(raw));
+}
+
 function handleUsage(ctx: AdminContext) {
-  const since = Number(ctx.url.searchParams.get('sinceMs') ?? Date.now() - 3_600_000);
-  const limit = Math.min(200, Number(ctx.url.searchParams.get('limit') ?? 50));
+  const sinceRaw = Number(ctx.url.searchParams.get('sinceMs') ?? Date.now() - 3_600_000);
+  const since = Number.isFinite(sinceRaw) ? sinceRaw : Date.now() - 3_600_000;
+  const limit = parseQueryLimit(ctx, 50);
   const rows = ctx.repos.raw()
     .prepare(
       `SELECT request_id, key_id, virtual_model_id, upstream_provider_id, upstream_model_id,
@@ -484,8 +496,9 @@ function handleUsage(ctx: AdminContext) {
 }
 
 function handleLogs(ctx: AdminContext) {
-  const since = Number(ctx.url.searchParams.get('sinceMs') ?? Date.now() - 3_600_000);
-  const limit = Math.min(200, Number(ctx.url.searchParams.get('limit') ?? 50));
+  const sinceRaw = Number(ctx.url.searchParams.get('sinceMs') ?? Date.now() - 3_600_000);
+  const since = Number.isFinite(sinceRaw) ? sinceRaw : Date.now() - 3_600_000;
+  const limit = parseQueryLimit(ctx, 50);
   const requestId = ctx.url.searchParams.get('requestId');
   
   let rows: unknown[];
