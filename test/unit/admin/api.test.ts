@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { encrypt } from '../../../src/crypto/aes.js';
 import { openTestDatabase } from '../../helpers/db.js';
 import { Registry } from '../../../src/observability/registry.js';
 import { handleAdminRequest } from '../../../src/admin/index.js';
@@ -389,6 +390,79 @@ describe('admin api', () => {
       const providers = resp(capture)['providers'] as Array<Record<string, unknown>>;
       expect(providers[0]!['inputPrice']).toBe(1.5);
       expect(providers[0]!['outputPrice']).toBeNull();
+    });
+  });
+
+  describe('GET /admin/api/glm/subscription', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    function insertGlmProvider(): void {
+      const masterKey = Buffer.alloc(32, 7);
+      const enc = encrypt('glm-plain-key-1234567890', masterKey);
+      (repos as any).providers.insert({
+        id: 'glm-1',
+        name: '智谱 GLM',
+        protocol: 'OpenAI-Compatible',
+        baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+        apiKeyCiphertext: enc.ciphertext,
+        apiKeyIv: enc.iv,
+        apiKeyTag: enc.tag,
+      });
+      (deps as any).masterKey = masterKey;
+    }
+
+    const quotaBody = {
+      success: true,
+      data: {
+        level: 'max',
+        limits: [
+          { type: 'CREDIT_LIMIT', unit: 3, percentage: 20, nextResetTime: 1900000000000 },
+          { type: 'CREDIT_LIMIT', unit: 6, percentage: 70, nextResetTime: 1990000000000 },
+        ],
+      },
+    };
+
+    it('returns guidance error when no GLM provider exists', async () => {
+      const { req, res, capture } = makeReqRes('/admin/api/glm/subscription', 'GET');
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(400);
+      expect(String(resp(capture)['error'])).toContain('未检测到 GLM');
+    });
+
+    it('decrypts the stored key and returns subscription windows end-to-end', async () => {
+      insertGlmProvider();
+      vi.stubGlobal('fetch', async (url: string | URL) => ({
+        ok: true,
+        status: 200,
+        json: async () =>
+          String(url).includes('/models') ? { data: [{ id: 'glm-4.7' }] } : quotaBody,
+      }));
+      const { req, res, capture } = makeReqRes('/admin/api/glm/subscription', 'GET');
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(200);
+      const body = resp(capture);
+      expect(body['providerId']).toBe('glm-1');
+      expect(body['planLevel']).toBe('Max');
+      expect(body['maskedKey']).toContain('****');
+      expect(String(body['maskedKey'])).not.toContain('glm-plain-key');
+      expect((body['windows'] as unknown[]).length).toBe(2);
+      expect(body['models']).toEqual(['glm-4.7']);
+    });
+
+    it('honors an explicit providerId and reports missing provider', async () => {
+      insertGlmProvider();
+      const { req, res } = makeReqRes('/admin/api/glm/subscription?providerId=nope', 'GET');
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('returns error when key cannot be decrypted (wrong master key)', async () => {
+      insertGlmProvider();
+      (deps as any).masterKey = Buffer.alloc(32, 9);
+      const { req, res, capture } = makeReqRes('/admin/api/glm/subscription', 'GET');
+      await handleAdminRequest(req, res, deps);
+      expect(res.statusCode).toBe(400);
+      expect(String(resp(capture)['error'])).toBeTruthy();
     });
   });
 });

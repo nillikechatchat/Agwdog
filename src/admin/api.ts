@@ -7,6 +7,7 @@ import type { Repositories } from '../storage/index.js';
 import type { Registry } from '../observability/registry.js';
 import { renderPrometheus } from '../observability/prometheus.js';
 import { loadMasterKey, encrypt } from '../crypto/aes.js';
+import { isGlmProvider, queryGlmSubscription, decryptProviderKey } from './glm.js';
 
 export interface AdminApiDeps {
   repos: Repositories;
@@ -65,6 +66,8 @@ export function buildAdminRouter(): Route[] {
     { method: 'POST', regex: /^\/admin\/api\/cache\/clear$/, paramNames: [], handler: handleClearCache },
     { method: 'GET', regex: /^\/admin\/api\/cache\/size$/, paramNames: [], handler: handleCacheSize },
     { method: 'GET', regex: /^\/admin\/api\/availability$/, paramNames: [], handler: handleAvailability },
+    { method: 'GET', regex: /^\/admin\/api\/glm\/candidates$/, paramNames: [], handler: handleGlmCandidates },
+    { method: 'GET', regex: /^\/admin\/api\/glm\/subscription$/, paramNames: [], handler: handleGlmSubscription },
   ];
 }
 
@@ -541,6 +544,39 @@ function handleAvailability(ctx: AdminContext) {
     latencyMsP50: m.latency_ms_p50,
     latencyMsP95: m.latency_ms_p95,
   })) };
+}
+
+function handleGlmCandidates(ctx: AdminContext) {
+  const candidates = ctx.repos.providers
+    .list()
+    .filter((p) => isGlmProvider(p))
+    .map((p) => ({ id: p.id, name: p.name, protocol: p.protocol, baseUrl: p.base_url, enabled: p.enabled === 1 }));
+  return { candidates };
+}
+
+async function handleGlmSubscription(ctx: AdminContext) {
+  const requestedId = ctx.url.searchParams.get('providerId');
+  const all = ctx.repos.providers.list();
+  let provider = undefined;
+  if (requestedId) {
+    provider = all.find((p) => p.id === requestedId);
+    if (!provider) return { error: 'provider not found' };
+  } else {
+    provider = all.find((p) => isGlmProvider(p));
+    if (!provider) {
+      return {
+        error: '未检测到 GLM/智谱 提供方。请先在「提供方」页添加，Base URL 使用 open.bigmodel.cn 或 api.z.ai',
+      };
+    }
+  }
+  const apiKeyPlain = decryptProviderKey(provider, ctx.deps.masterKey);
+  const sub = await queryGlmSubscription(apiKeyPlain, provider.base_url);
+  return {
+    ...sub,
+    providerId: provider.id,
+    providerName: provider.name,
+    providerEnabled: provider.enabled === 1,
+  };
 }
 
 function webAssetCandidates(filename: string): string[] {

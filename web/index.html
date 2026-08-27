@@ -261,6 +261,26 @@
     code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--text-dim); word-break: break-all; }
     pre { background: var(--bg); padding: 12px; border-radius: 8px; overflow: auto; font-size: 12px; margin: 0; }
 
+    /* Quota bar (GLM subscription) */
+    .quota-row { margin-bottom: 18px; }
+    .quota-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: 13px; }
+    .quota-track { height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; border: 1px solid var(--border); }
+    .quota-fill { height: 100%; border-radius: 5px; transition: width .4s ease; }
+    .quota-ok { background: #22c55e; }
+    .quota-warn { background: #eab308; }
+    .quota-danger { background: #ef4444; }
+    .quota-reset { color: var(--text-dim); font-size: 12px; margin-top: 4px; }
+    .model-chip {
+      display: inline-block; padding: 3px 10px; margin: 0 6px 6px 0;
+      background: var(--bg); border: 1px solid var(--border-2);
+      border-radius: 999px; font-size: 12px; color: var(--text-dim);
+    }
+    .level-badge {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      background: rgba(59,130,246,.15); color: var(--accent);
+      font-size: 13px; font-weight: 600;
+    }
+
     /* Modal */
     .modal-overlay {
       position: fixed; inset: 0;
@@ -425,6 +445,66 @@
             <div v-else class="empty" style="margin:16px">暂无已配置的模型</div>
           </div>
         </div>
+      </section>
+
+      <!-- ============ 订阅管理 (GLM Coding Plan) ============ -->
+      <section class="view" v-show="currentView === 'subscription'">
+        <div class="toolbar">
+          <select v-model="subProviderId" @change="loadSubscription" style="max-width:280px">
+            <option v-for="c in subCandidates" :key="c.id" :value="c.id">{{ c.name }}（{{ c.baseUrl }}）</option>
+          </select>
+          <span v-if="subCandidates.length" style="color:var(--text-dim);font-size:12px">自动识别为 GLM/智谱 的提供方</span>
+          <div class="spacer"></div>
+          <button class="btn ghost" @click="loadSubscription" :disabled="subLoading">{{ subLoading ? '查询中…' : '刷新额度' }}</button>
+        </div>
+
+        <div v-if="subError && !subLoading" class="empty" style="color:var(--err)">{{ subError }}</div>
+
+        <template v-else-if="subData">
+          <div class="grid cols-4">
+            <div class="card">
+              <div class="card-header"><h2>套餐等级</h2></div>
+              <div class="stat"><span class="level-badge">{{ subData.planLevel }}</span></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2>提供方</h2></div>
+              <div class="stat small">{{ subData.providerName }}</div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2>API Key</h2></div>
+              <div class="stat small"><code>{{ subData.maskedKey }}</code></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2>平台</h2></div>
+              <div class="stat small"><code>{{ subData.platformBase }}</code></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <div class="card-header"><h2>额度用量窗口</h2></div>
+            <div v-if="!subData.windows.length" class="empty" style="padding:20px">接口本次未返回额度窗口数据（可能为团队版 Key 或数据未生成）。</div>
+            <div v-for="(w, i) in subData.windows" :key="i" class="quota-row">
+              <div class="quota-head">
+                <strong>{{ w.label }}</strong>
+                <span>已用 {{ w.usedPct.toFixed(2) }}% · 余量约 {{ w.remainingPct.toFixed(2) }}%</span>
+              </div>
+              <div class="quota-track">
+                <div class="quota-fill" :class="w.usedPct > 90 ? 'quota-danger' : w.usedPct > 80 ? 'quota-warn' : 'quota-ok'"
+                     :style="{ width: Math.min(w.usedPct, 100) + '%' }"></div>
+              </div>
+              <div class="quota-reset" v-if="w.resetAtMs">重置时间：{{ fmtTime(w.resetAtMs) }}（{{ fmtRel(w.resetAtMs) }}）</div>
+              <div class="quota-reset" v-else>重置时间未知</div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <div class="card-header"><h2>可用模型（{{ subData.models.length }} 个）</h2></div>
+            <div v-if="!subData.models.length" class="empty" style="padding:20px">接口本次未返回模型列表（不影响余额查询）。</div>
+            <div v-else style="padding-top:4px">
+              <span class="model-chip" v-for="m in subData.models" :key="m">{{ m }}</span>
+            </div>
+          </div>
+        </template>
       </section>
 
       <!-- ============ 提供方 ============ -->
@@ -869,6 +949,7 @@
         { label: '概览', items: [
           { id: 'dashboard', icon: '📊', label: '仪表盘' },
           { id: 'availability', icon: '🔍', label: '可用性' },
+          { id: 'subscription', icon: '⭐', label: '订阅管理' },
         ]},
         { label: '配置', items: [
           { id: 'providers', icon: '🔌', label: '提供方' },
@@ -916,7 +997,13 @@
       function fmtRel(ts) {
         if (!ts) return '-';
         const diff = Date.now() - Number(ts);
-        if (diff < 60_000) return '刚刚';
+        if (diff >= -60_000 && diff < 60_000) return '刚刚';
+        if (diff < 0) {
+          const f = -diff;
+          if (f < 3_600_000) return Math.round(f / 60_000) + ' 分钟后';
+          if (f < 86_400_000) return Math.round(f / 3_600_000) + ' 小时后';
+          return Math.round(f / 86_400_000) + ' 天后';
+        }
         if (diff < 3_600_000) return Math.floor(diff / 60_000) + ' 分钟前';
         if (diff < 86_400_000) return Math.floor(diff / 3_600_000) + ' 小时前';
         return new Date(Number(ts)).toLocaleDateString('zh-CN');
@@ -1052,9 +1139,46 @@
         try { cacheSize.value = (await api('/cache/size')).size ?? 0; } catch { /* ignore */ }
       }
 
+      // ---------- 订阅管理 (GLM Coding Plan) ----------
+      const subCandidates = ref([]);
+      const subProviderId = ref('');
+      const subData = ref(null);
+      const subLoading = ref(false);
+      const subError = ref('');
+
+      async function loadSubCandidates() {
+        try {
+          subCandidates.value = (await api('/glm/candidates')).candidates ?? [];
+          if (!subProviderId.value && subCandidates.value.length) {
+            subProviderId.value = subCandidates.value[0].id;
+          }
+        } catch { /* handled by subscription query error path */ }
+      }
+
+      async function loadSubscription() {
+        subLoading.value = true;
+        subError.value = '';
+        if (!subCandidates.value.length) await loadSubCandidates();
+        if (!subProviderId.value) {
+          subError.value = '未检测到 GLM/智谱 提供方。请先在「提供方」页添加，Base URL 使用 open.bigmodel.cn 或 api.z.ai';
+          subLoading.value = false;
+          return;
+        }
+        try {
+          const params = subProviderId.value ? `?providerId=${encodeURIComponent(subProviderId.value)}` : '';
+          subData.value = await api('/glm/subscription' + params);
+          serverOnline.value = true;
+        } catch (e) {
+          subData.value = null;
+          subError.value = e.message;
+        }
+        subLoading.value = false;
+      }
+
       const loaders = {
         dashboard: loadDashboard,
         availability: loadAvailability,
+        subscription: loadSubscription,
         providers: loadProviders,
         vmodels: loadVModels,
         keys: loadKeys,
@@ -1413,6 +1537,7 @@
         models, providers, virtualModels, keys, usageRecords, usageRangeHours, cacheSize,
         protocolLabel, strategyLabel, availLabel, availClass, cacheHitLabel, keyStatusLabel, clientProtocolLabel, budgetSummary,
         fmtInt, fmtUsd, fmtPrice, fmtTime, fmtRel,
+        subCandidates, subProviderId, subData, subLoading, subError, loadSubscription,
         modal, closeModal,
         protocols, addingProvider, addForm, openAddProvider, submitAddProvider,
         editingProvider, editForm, openEditProvider, submitEditProvider, updateProvider, deleteProvider,
