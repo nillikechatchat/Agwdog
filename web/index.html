@@ -304,9 +304,7 @@
     .fade-enter-active, .fade-leave-active { transition: opacity 0.15s ease; }
     .fade-enter-from, .fade-leave-to { opacity: 0; }
 
-    /* View visibility */
-    .view { display: none; }
-    .view.active { display: block; }
+    /* View visibility is controlled by Vue's v-show directive */
 
     /* Mobile */
     .hamburger {
@@ -387,7 +385,7 @@
 
     <main>
       <!-- ============ 仪表盘 ============ -->
-      <section class="view active" v-show="currentView === 'dashboard'">
+      <section class="view" v-show="currentView === 'dashboard'">
         <div class="grid cols-4">
           <div class="card" v-for="c in dashCardsTop" :key="c.label">
             <div class="card-header"><h2>{{ c.label }}</h2></div>
