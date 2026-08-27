@@ -968,7 +968,7 @@
             authError.value = '';
             authInput.value = '';
             toast('认证成功');
-            await reloadCurrent();
+            await bootLoad();
           } else if (res.status === 401) {
             authError.value = '令牌无效，请检查后重试';
           } else {
@@ -982,6 +982,7 @@
       function logout() {
         authToken.value = '';
         localStorage.removeItem(AUTH_STORAGE_KEY);
+        bootLoaded = false;
         showAuthModal.value = true;
         toast('已退出认证', 'err');
       }
@@ -1390,13 +1391,19 @@
       }
 
       // ---------- 初始化 ----------
-      onMounted(async () => {
-        if (!authToken.value) showAuthModal.value = true;
+      let bootLoaded = false;
+      async function bootLoad() {
+        if (bootLoaded) return;
+        bootLoaded = true;
         await Promise.all([
           loadProviders(),
           loadSettings(),
         ]).catch(() => {});
         await reloadCurrent();
+      }
+      onMounted(async () => {
+        if (authToken.value) await bootLoad();
+        else showAuthModal.value = true;
       });
 
       return {
